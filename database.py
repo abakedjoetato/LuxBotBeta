@@ -15,6 +15,7 @@ class QueueLine(Enum):
     DOUBLESKIP = "DoubleSkip" 
     SKIP = "Skip"
     FREE = "Free"
+    CALLS_PLAYED = "Calls Played"
 
 class Database:
     """Async SQLite database handler for the music queue bot"""
@@ -127,6 +128,40 @@ class Database:
                     if row:
                         return dict(row)
         return None
+    
+    async def take_next_to_calls_played(self) -> Optional[Dict[str, Any]]:
+        """Atomically move the next submission to Calls Played line"""
+        priority_order = [QueueLine.BACKTOBACK.value, QueueLine.DOUBLESKIP.value, 
+                         QueueLine.SKIP.value, QueueLine.FREE.value]
+        
+        async with self._lock:
+            async with aiosqlite.connect(self.db_path) as db:
+                db.row_factory = aiosqlite.Row
+                
+                # Find the next submission by priority
+                for queue_line in priority_order:
+                    async with db.execute("""
+                        SELECT * FROM submissions WHERE queue_line = ? 
+                        ORDER BY submission_time ASC LIMIT 1
+                    """, (queue_line,)) as cursor:
+                        row = await cursor.fetchone()
+                        
+                        if row:
+                            submission_dict = dict(row)
+                            original_line = submission_dict['queue_line']
+                            
+                            # Move it to Calls Played
+                            await db.execute("""
+                                UPDATE submissions SET queue_line = ? WHERE id = ?
+                            """, (QueueLine.CALLS_PLAYED.value, submission_dict['id']))
+                            
+                            await db.commit()
+                            
+                            # Return the submission with original line info
+                            submission_dict['original_line'] = original_line
+                            return submission_dict
+                
+                return None
     
     async def set_channel_for_line(self, queue_line: str, channel_id: int, pinned_message_id: Optional[int] = None):
         """Set the channel for a queue line"""
