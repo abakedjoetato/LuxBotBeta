@@ -79,7 +79,8 @@ class QueueCog(commands.Cog):
             QueueLine.BACKTOBACK.value: discord.Color.red(),
             QueueLine.DOUBLESKIP.value: discord.Color.orange(),
             QueueLine.SKIP.value: discord.Color.yellow(),
-            QueueLine.FREE.value: discord.Color.green()
+            QueueLine.FREE.value: discord.Color.green(),
+            QueueLine.CALLS_PLAYED.value: discord.Color.purple()
         }
         return colors.get(queue_line, discord.Color.blue())
     
@@ -110,7 +111,8 @@ class QueueCog(commands.Cog):
                 "**BackToBack** - Highest priority\n"
                 "**DoubleSkip** - High priority\n"
                 "**Skip** - Medium priority\n"
-                "**Free** - Standard submissions (1 per user)"
+                "**Free** - Standard submissions (1 per user)\n"
+                "**Calls Played** - Archive of reviewed tracks"
             ),
             inline=False
         )

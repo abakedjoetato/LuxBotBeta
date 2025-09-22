@@ -31,7 +31,8 @@ class AdminCog(commands.Cog):
         app_commands.Choice(name="BackToBack", value="BackToBack"),
         app_commands.Choice(name="DoubleSkip", value="DoubleSkip"),
         app_commands.Choice(name="Skip", value="Skip"),
-        app_commands.Choice(name="Free", value="Free")
+        app_commands.Choice(name="Free", value="Free"),
+        app_commands.Choice(name="Calls Played", value="Calls Played")
     ])
     async def set_line(self, interaction: discord.Interaction, line: str, channel: discord.TextChannel):
         """Set the channel for a queue line"""
@@ -73,7 +74,8 @@ class AdminCog(commands.Cog):
         app_commands.Choice(name="BackToBack", value="BackToBack"),
         app_commands.Choice(name="DoubleSkip", value="DoubleSkip"),
         app_commands.Choice(name="Skip", value="Skip"),
-        app_commands.Choice(name="Free", value="Free")
+        app_commands.Choice(name="Free", value="Free"),
+        app_commands.Choice(name="Calls Played", value="Calls Played")
     ])
     async def move_submission(self, interaction: discord.Interaction, submission_id: int, target_line: str):
         """Move a submission between queue lines"""
@@ -164,8 +166,8 @@ class AdminCog(commands.Cog):
             return
         
         try:
-            # Get next submission
-            next_sub = await self.bot.db.get_next_submission()
+            # Atomically take the next submission and move it to Calls Played
+            next_sub = await self.bot.db.take_next_to_calls_played()
             
             if not next_sub:
                 embed = discord.Embed(
@@ -176,14 +178,15 @@ class AdminCog(commands.Cog):
                 await interaction.response.send_message(embed=embed, ephemeral=True)
                 return
             
-            # Create embed for the next submission
+            # Create embed for the taken submission
             embed = discord.Embed(
-                title="🎵 Next Submission to Review",
+                title="🎵 Now Playing - Moved to Calls Played",
+                description=f"Moved from **{next_sub['original_line']}** line to **Calls Played**",
                 color=discord.Color.gold()
             )
             
             embed.add_field(name="Submission ID", value=f"#{next_sub['id']}", inline=True)
-            embed.add_field(name="Queue Line", value=next_sub['queue_line'], inline=True)
+            embed.add_field(name="Original Line", value=next_sub['original_line'], inline=True)
             embed.add_field(name="Submitted By", value=next_sub['username'], inline=True)
             embed.add_field(name="Artist", value=next_sub['artist_name'], inline=True)
             embed.add_field(name="Song", value=next_sub['song_name'], inline=True)
@@ -197,6 +200,12 @@ class AdminCog(commands.Cog):
             
             # Send to admin who used the command
             await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+            # Update queue displays for both the origin line and Calls Played
+            if hasattr(self.bot, 'get_cog') and self.bot.get_cog('QueueCog'):
+                queue_cog = self.bot.get_cog('QueueCog')
+                await queue_cog.update_queue_display(next_sub['original_line'])
+                await queue_cog.update_queue_display(QueueLine.CALLS_PLAYED.value)
             
             # Also send to DM if possible
             try:
