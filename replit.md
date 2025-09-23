@@ -2,7 +2,7 @@
 
 ## Overview
 
-A Discord bot that implements a TikTok-style music review queue system using Discord.py v2.x. The bot features interactive slash commands, modal forms for submissions, and real-time queue management across four priority-based queue lines. Users can submit music for review through an interactive form, while administrators can manage submissions across different priority queues with automatic embed updates.
+A Discord bot that implements a TikTok-style music review queue system using Discord.py v2.x. The bot features interactive slash commands, modal forms and file uploads for submissions, and real-time queue management across four priority-based queue lines plus an archive. Users can submit music via links or upload actual MP3/audio files, while administrators can manage submissions across different priority queues with automatic embed updates and "Calls Played" archiving.
 
 ## User Preferences
 
@@ -12,7 +12,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend Architecture
 - **Discord.py v2.x Framework**: Modern Discord bot implementation using slash commands and interactive UI components
-- **Modal-Based Submissions**: Uses `discord.ui.Modal` for user-friendly form submissions with validation
+- **Dual Submission Methods**: Uses `discord.ui.Modal` for link submissions and `discord.Attachment` for file uploads
+- **File Upload Support**: Accepts MP3, WAV, M4A, and FLAC files up to 25MB with content-type validation
 - **Real-time Embed Updates**: Pinned messages in designated channels automatically update when queue state changes
 - **Cog-Based Organization**: Modular architecture with separate cogs for admin, queue, and submission functionality
 
@@ -24,9 +25,11 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Storage Solutions
 - **SQLite Database**: Two main tables for submissions and channel settings
-- **Submissions Table**: Stores user submissions with metadata (user_id, artist_name, song_name, queue_line, etc.)
+- **Submissions Table**: Stores user submissions with metadata (user_id, artist_name, song_name, link_or_file, queue_line, etc.)
+- **Discord CDN Integration**: File uploads stored as Discord CDN URLs for persistent access
 - **Channel Settings Table**: Maps queue lines to Discord channels and pinned message IDs
 - **Auto-incrementing IDs**: Primary key system for unique submission identification
+- **Archive System**: "Calls Played" line automatically tracks processed submissions
 
 ### Authentication and Authorization
 - **Discord Permission System**: Admin commands protected by `manage_guild` permission check
