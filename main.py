@@ -29,11 +29,9 @@ class MusicQueueBot(commands.Bot):
     """Main Discord bot class with music queue functionality"""
     
     def __init__(self):
-        # Define intents
+        # Define intents (minimal for slash commands)
         intents = discord.Intents.default()
-        intents.message_content = True
         intents.guilds = True
-        intents.members = True
         
         super().__init__(
             command_prefix='!',  # Fallback prefix, we're using slash commands
