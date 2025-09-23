@@ -97,7 +97,8 @@ class QueueCog(commands.Cog):
         embed.add_field(
             name="📝 User Commands",
             value=(
-                "**/submit** - Submit music for review (opens form)\n"
+                "**/submit** - Submit music link for review (opens form)\n"
+                "**/submitfile** - Submit MP3/audio file for review\n"
                 "**/myqueue** - View your active submissions\n"
                 "**/help** - Show this help message"
             ),

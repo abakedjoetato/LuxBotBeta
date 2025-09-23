@@ -31,29 +31,20 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
     )
     
     link_or_file = discord.ui.TextInput(
-        label='Link or File',
-        placeholder='Paste a URL (YouTube, Spotify, etc.) or upload an MP3...',
+        label='Music Link',
+        placeholder='Paste a URL (YouTube, Spotify, SoundCloud, etc.)...',
         required=True,
         max_length=500
     )
     
     async def on_submit(self, interaction: discord.Interaction):
         """Handle form submission"""
-        # Validate link/URL format
-        url_pattern = re.compile(
-            r'^https?://'  # http:// or https://
-            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
-            r'localhost|'  # localhost...
-            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
-            r'(?::\d+)?'  # optional port
-            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-        
         link_value = str(self.link_or_file.value).strip()
         
-        # Check if it's a valid URL or uploaded file
-        if not (url_pattern.match(link_value) or link_value.endswith('.mp3')):
+        # Check if it's a valid URL (simple but permissive check)
+        if not (link_value.startswith('http://') or link_value.startswith('https://')):
             await interaction.response.send_message(
-                "❌ Please provide a valid URL (YouTube, Spotify, etc.) or upload an MP3 file.",
+                "❌ Please provide a valid URL (YouTube, Spotify, SoundCloud, etc.). For file uploads, use /submitfile instead.",
                 ephemeral=True
             )
             return
@@ -111,11 +102,108 @@ class SubmissionCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
     
-    @app_commands.command(name="submit", description="Submit music for review")
+    @app_commands.command(name="submit", description="Submit music for review using a link")
     async def submit(self, interaction: discord.Interaction):
-        """Open submission modal"""
+        """Open submission modal for link submissions"""
         modal = SubmissionModal(self.bot)
         await interaction.response.send_modal(modal)
+    
+    @app_commands.command(name="submitfile", description="Submit an MP3 file for review")
+    @app_commands.describe(
+        file="Upload your MP3 file",
+        artist_name="Name of the artist",
+        song_name="Title of the song"
+    )
+    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str):
+        """Submit an MP3 file for review"""
+        # Validate file type (check both content type and extension)
+        valid_extensions = ('.mp3', '.wav', '.m4a', '.flac')
+        valid_content_types = ('audio/', 'video/')
+        
+        is_valid_extension = file.filename.lower().endswith(valid_extensions)
+        is_valid_content = file.content_type and any(file.content_type.startswith(ct) for ct in valid_content_types)
+        
+        if not (is_valid_extension or is_valid_content):
+            await interaction.response.send_message(
+                "❌ Please upload a valid audio file (MP3, WAV, M4A, or FLAC).",
+                ephemeral=True
+            )
+            return
+        
+        # Check file size (25MB limit for Discord)
+        if file.size > 25 * 1024 * 1024:
+            await interaction.response.send_message(
+                "❌ File is too large. Discord has a 25MB limit for file uploads.",
+                ephemeral=True
+            )
+            return
+        
+        # Validate artist and song name
+        if len(artist_name.strip()) == 0 or len(song_name.strip()) == 0:
+            await interaction.response.send_message(
+                "❌ Artist name and song name cannot be empty.",
+                ephemeral=True
+            )
+            return
+        
+        if len(artist_name) > 100 or len(song_name) > 100:
+            await interaction.response.send_message(
+                "❌ Artist name and song name must be 100 characters or less.",
+                ephemeral=True
+            )
+            return
+        
+        # Check if user already has a submission in Free line
+        existing_count = await self.bot.db.get_user_submission_count_in_line(
+            interaction.user.id, QueueLine.FREE.value
+        )
+        
+        if existing_count > 0:
+            await interaction.response.send_message(
+                "❌ You already have a submission in the Free line. You can only have one active submission in Free.",
+                ephemeral=True
+            )
+            return
+        
+        try:
+            # Store the file URL (Discord CDN link)
+            file_url = file.url
+            
+            # Add submission to database
+            submission_id = await self.bot.db.add_submission(
+                user_id=interaction.user.id,
+                username=interaction.user.display_name,
+                artist_name=artist_name.strip(),
+                song_name=song_name.strip(),
+                link_or_file=file_url,
+                queue_line=QueueLine.FREE.value
+            )
+            
+            # Create success embed
+            embed = discord.Embed(
+                title="✅ File Submission Added!",
+                description=f"Your music file has been added to the **Free** line.",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Artist", value=artist_name, inline=True)
+            embed.add_field(name="Song", value=song_name, inline=True)
+            embed.add_field(name="File", value=file.filename, inline=True)
+            embed.add_field(name="File Size", value=f"{file.size / 1024 / 1024:.1f} MB", inline=True)
+            embed.add_field(name="Submission ID", value=f"#{submission_id}", inline=False)
+            embed.set_footer(text="Use /myqueue to see all your submissions")
+            
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+            # Update queue display
+            if hasattr(self.bot, 'get_cog') and self.bot.get_cog('QueueCog'):
+                queue_cog = self.bot.get_cog('QueueCog')
+                await queue_cog.update_queue_display(QueueLine.FREE.value)
+                
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ An error occurred while adding your file submission: {str(e)}",
+                ephemeral=True
+            )
     
     @app_commands.command(name="myqueue", description="View your submissions in all queues")
     async def my_queue(self, interaction: discord.Interaction):
