@@ -111,6 +111,28 @@ class Database:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
+    async def get_queue_submissions_paginated(self, queue_line: str, page: int, per_page: int) -> List[Dict[str, Any]]:
+        """Get submissions for a specific queue line with pagination"""
+        offset = (page - 1) * per_page
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT * FROM submissions WHERE queue_line = ? 
+                ORDER BY submission_time ASC 
+                LIMIT ? OFFSET ?
+            """, (queue_line, per_page, offset)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_queue_submission_count(self, queue_line: str) -> int:
+        """Get total count of submissions in a specific queue line"""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("""
+                SELECT COUNT(*) FROM submissions WHERE queue_line = ?
+            """, (queue_line,)) as cursor:
+                result = await cursor.fetchone()
+                return result[0] if result else 0
+
     async def remove_submission(self, submission_id: int) -> bool:
         """Remove a submission by ID"""
         async with self._lock:

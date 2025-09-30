@@ -16,7 +16,21 @@ class QueueCog(commands.Cog):
         self.bot = bot
     
     async def update_queue_display(self, queue_line: str):
-        """Update the pinned embed message for a queue line"""
+        """Update the pinned queue display using paginated views"""
+        try:
+            # Use the QueueViewCog to create/update paginated view
+            queue_view_cog = self.bot.get_cog('QueueViewCog')
+            if queue_view_cog:
+                await queue_view_cog.create_or_update_queue_view(queue_line)
+            else:
+                # Fallback to old method if QueueViewCog not available
+                await self._legacy_update_queue_display(queue_line)
+                
+        except Exception as e:
+            print(f"Error updating queue display for {queue_line}: {e}")
+
+    async def _legacy_update_queue_display(self, queue_line: str):
+        """Legacy update method (fallback)"""
         try:
             # Get channel settings for this line
             channel_settings = await self.bot.db.get_channel_for_line(queue_line)
@@ -41,15 +55,20 @@ class QueueCog(commands.Cog):
                 embed.description = "No submissions in this line."
             else:
                 description = ""
-                for i, sub in enumerate(submissions, 1):
+                # Limit to first 15 entries for legacy display
+                display_submissions = submissions[:15]
+                for i, sub in enumerate(display_submissions, 1):
                     link_text = f" ([Link]({sub['link_or_file']}))" if sub['link_or_file'].startswith('http') else ""
                     # Format timestamp to show local time
                     timestamp = f"<t:{int(discord.utils.parse_time(sub['submission_time']).timestamp())}:t>"
                     description += f"**{i}.** #{sub['id']} - {sub['username']} – *{sub['artist_name']} – {sub['song_name']}*{link_text} | {timestamp}\n"
                 
+                if len(submissions) > 15:
+                    description += f"\n*... and {len(submissions) - 15} more submissions*"
+                
                 embed.description = description
             
-            embed.set_footer(text=f"Total submissions: {len(submissions)} | Last updated | Luxurious Radio By Emerald Beats")
+            embed.set_footer(text=f"Total submissions: {len(submissions)} | Legacy Display | Luxurious Radio By Emerald Beats")
             embed.timestamp = discord.utils.utcnow()
             
             # Update or create pinned message
@@ -65,7 +84,7 @@ class QueueCog(commands.Cog):
                 await self._create_new_pinned_message(channel, embed, queue_line)
                 
         except Exception as e:
-            print(f"Error updating queue display for {queue_line}: {e}")
+            print(f"Error updating legacy queue display for {queue_line}: {e}")
     
     async def _create_new_pinned_message(self, channel, embed, queue_line):
         """Create a new pinned message for the queue"""
