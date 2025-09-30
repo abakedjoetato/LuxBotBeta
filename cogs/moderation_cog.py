@@ -38,6 +38,12 @@ class ModerationCog(commands.Cog):
         if isinstance(message.author, discord.Member) and self._has_admin_permissions(message.author):
             return
         
+        # Check if this message has embeds with submission buttons (preserve those)
+        if message.embeds:
+            for embed in message.embeds:
+                if embed.title and "Music Submission Portal" in embed.title:
+                    return  # Don't delete the submission buttons embed
+        
         # Delete the message and send guidance
         try:
             await message.delete()

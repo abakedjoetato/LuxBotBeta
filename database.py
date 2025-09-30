@@ -275,6 +275,35 @@ class Database:
                 await db.commit()
                 return count
 
+    async def set_bookmark_channel(self, channel_id: int):
+        """Set the bookmark channel"""
+        async with self._lock:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute("""
+                    INSERT OR REPLACE INTO bot_settings (key, value)
+                    VALUES ('bookmark_channel', ?)
+                """, (str(channel_id),))
+                await db.commit()
+
+    async def get_bookmark_channel(self) -> Optional[int]:
+        """Get the bookmark channel ID"""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("""
+                SELECT value FROM bot_settings WHERE key = 'bookmark_channel'
+            """) as cursor:
+                row = await cursor.fetchone()
+                return int(row[0]) if row else None
+
+    async def get_submission_by_id(self, submission_id: int) -> Optional[Dict[str, Any]]:
+        """Get a specific submission by ID"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT * FROM submissions WHERE id = ?
+            """, (submission_id,)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
     async def close(self):
         """Close database connection"""
         pass

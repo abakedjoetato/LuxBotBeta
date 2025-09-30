@@ -330,6 +330,112 @@ class AdminCog(commands.Cog):
                 f"❌ Error clearing Free line: {str(e)}", 
                 ephemeral=True
             )
+    
+    @app_commands.command(name="setbookmarkchannel", description="Set the channel for bookmarked submissions")
+    @app_commands.describe(channel="The text channel to use for bookmarks")
+    async def set_bookmark_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """Set the channel for bookmarked submissions"""
+        if not self._has_admin_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", 
+                ephemeral=True
+            )
+            return
+        
+        try:
+            # Set bookmark channel
+            await self.bot.db.set_bookmark_channel(channel.id)
+            
+            embed = discord.Embed(
+                title="✅ Bookmark Channel Set",
+                description=f"Bookmark channel is now set to {channel.mention}\n\n"
+                           f"Use `/bookmark <submission_id>` to bookmark submissions to this channel.",
+                color=discord.Color.green()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Error setting bookmark channel: {str(e)}", 
+                ephemeral=True
+            )
+    
+    @app_commands.command(name="bookmark", description="Bookmark a submission to the bookmark channel")
+    @app_commands.describe(submission_id="The ID of the submission to bookmark")
+    async def bookmark_submission(self, interaction: discord.Interaction, submission_id: int):
+        """Bookmark a submission to the designated bookmark channel"""
+        if not self._has_admin_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", 
+                ephemeral=True
+            )
+            return
+        
+        try:
+            # Get bookmark channel
+            bookmark_channel_id = await self.bot.db.get_bookmark_channel()
+            if not bookmark_channel_id:
+                await interaction.response.send_message(
+                    "❌ No bookmark channel has been set. Use `/setbookmarkchannel` first.", 
+                    ephemeral=True
+                )
+                return
+            
+            bookmark_channel = self.bot.get_channel(bookmark_channel_id)
+            if not bookmark_channel:
+                await interaction.response.send_message(
+                    "❌ Bookmark channel not found. Please set a new one with `/setbookmarkchannel`.", 
+                    ephemeral=True
+                )
+                return
+            
+            # Get submission details
+            submission = await self.bot.db.get_submission_by_id(submission_id)
+            if not submission:
+                await interaction.response.send_message(
+                    f"❌ Submission #{submission_id} not found.", 
+                    ephemeral=True
+                )
+                return
+            
+            # Create bookmark embed
+            embed = discord.Embed(
+                title="🔖 Bookmarked Submission",
+                description=f"Bookmarked by {interaction.user.mention}",
+                color=discord.Color.gold()
+            )
+            
+            embed.add_field(name="Submission ID", value=f"#{submission['id']}", inline=True)
+            embed.add_field(name="Queue Line", value=submission['queue_line'], inline=True)
+            embed.add_field(name="Submitted By", value=submission['username'], inline=True)
+            embed.add_field(name="Artist", value=submission['artist_name'], inline=True)
+            embed.add_field(name="Song", value=submission['song_name'], inline=True)
+            embed.add_field(name="User ID", value=submission['user_id'], inline=True)
+            
+            if submission['link_or_file'].startswith('http'):
+                embed.add_field(name="Link", value=f"[Click Here]({submission['link_or_file']})", inline=False)
+            else:
+                embed.add_field(name="File", value=submission['link_or_file'], inline=False)
+            
+            embed.set_footer(text=f"Originally submitted on {submission['submission_time']}")
+            embed.timestamp = discord.utils.utcnow()
+            
+            # Send to bookmark channel
+            await bookmark_channel.send(embed=embed)
+            
+            # Confirm to admin
+            embed_confirm = discord.Embed(
+                title="✅ Submission Bookmarked",
+                description=f"Submission #{submission_id} has been bookmarked to {bookmark_channel.mention}",
+                color=discord.Color.green()
+            )
+            await interaction.response.send_message(embed=embed_confirm, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Error bookmarking submission: {str(e)}", 
+                ephemeral=True
+            )
 
 async def setup(bot):
     """Setup function for the cog"""

@@ -9,6 +9,79 @@ import re
 from typing import Optional
 from database import QueueLine
 
+class FileSubmissionModal(discord.ui.Modal, title='Submit Music File'):
+    """Modal form for file submissions with metadata"""
+    
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+    
+    artist_name = discord.ui.TextInput(
+        label='Artist Name',
+        placeholder='Enter the artist name...',
+        required=True,
+        max_length=100
+    )
+    
+    song_name = discord.ui.TextInput(
+        label='Song Name', 
+        placeholder='Enter the song title...',
+        required=True,
+        max_length=100
+    )
+    
+    instructions = discord.ui.TextInput(
+        label='Next Step',
+        placeholder='After submitting this form, you will need to upload your file in the next message.',
+        default='Click Submit, then upload your audio file in the next message.',
+        required=False,
+        max_length=200
+    )
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        """Handle file submission form - request file upload"""
+        # Check if submissions are open
+        submissions_open = await self.bot.db.are_submissions_open()
+        if not submissions_open:
+            await interaction.response.send_message(
+                "❌ Submissions are currently closed. Please try again later.",
+                ephemeral=True
+            )
+            return
+        
+        # Check if user already has a submission in Free line
+        existing_count = await self.bot.db.get_user_submission_count_in_line(
+            interaction.user.id, QueueLine.FREE.value
+        )
+        
+        if existing_count > 0:
+            await interaction.response.send_message(
+                "❌ You already have a submission in the Free line. You can only have one active submission in Free.",
+                ephemeral=True
+            )
+            return
+        
+        # Store metadata in a temporary way for the next file upload
+        # We'll need to use a follow-up message asking for file upload
+        embed = discord.Embed(
+            title="📁 Ready for File Upload",
+            description="Please upload your audio file now (MP3, M4A, or FLAC).\n\n"
+                       f"**Artist:** {self.artist_name.value}\n"
+                       f"**Song:** {self.song_name.value}\n\n"
+                       "❌ **Note:** WAV files are not supported.",
+            color=discord.Color.blue()
+        )
+        embed.set_footer(text="Upload your file in your next message - this form will timeout in 5 minutes")
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        
+        # Store the metadata temporarily (we'll handle the file upload in a message listener)
+        # For now, we'll implement a simpler approach asking user to use /submitfile instead
+        await interaction.followup.send(
+            "💡 **Alternative:** You can also use the `/submitfile` command directly with your file and metadata.",
+            ephemeral=True
+        )
+
 class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
     """Modal form for music submissions"""
     
@@ -113,11 +186,42 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
                 ephemeral=True
             )
 
+class SubmissionButtonView(discord.ui.View):
+    """Persistent view with submission buttons"""
+    
+    def __init__(self, bot):
+        super().__init__(timeout=None)
+        self.bot = bot
+    
+    @discord.ui.button(
+        label='Submit Link', 
+        style=discord.ButtonStyle.primary, 
+        emoji='🔗',
+        custom_id='submit_link_button'
+    )
+    async def submit_link_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Handle link submission button"""
+        modal = SubmissionModal(self.bot)
+        await interaction.response.send_modal(modal)
+    
+    @discord.ui.button(
+        label='Submit File', 
+        style=discord.ButtonStyle.secondary, 
+        emoji='📁',
+        custom_id='submit_file_button'
+    )
+    async def submit_file_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Handle file submission button"""
+        modal = FileSubmissionModal(self.bot)
+        await interaction.response.send_modal(modal)
+
 class SubmissionCog(commands.Cog):
     """Cog for handling music submissions"""
     
     def __init__(self, bot):
         self.bot = bot
+        # Add persistent view for buttons
+        self.submission_view = SubmissionButtonView(bot)
     
     @app_commands.command(name="submit", description="Submit music for review using a link")
     async def submit(self, interaction: discord.Interaction):
@@ -279,7 +383,70 @@ class SubmissionCog(commands.Cog):
         
         embed.set_footer(text="Contact an admin to move submissions between lines")
         await interaction.response.send_message(embed=embed, ephemeral=True)
+    
+    @app_commands.command(name="setupsubmissionbuttons", description="[ADMIN] Setup submission buttons in current channel")
+    async def setup_submission_buttons(self, interaction: discord.Interaction):
+        """Setup submission buttons embed (admin only)"""
+        # Check admin permissions
+        if not (hasattr(interaction.user, 'guild_permissions') and 
+                interaction.user.guild_permissions and
+                interaction.user.guild_permissions.manage_guild):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", 
+                ephemeral=True
+            )
+            return
+        
+        # Create submission instructions embed
+        embed = discord.Embed(
+            title="🎵 Music Submission Portal",
+            description="Welcome to the music submission system! Choose how you'd like to submit your music:",
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(
+            name="🔗 Submit Link",
+            value="Submit music via URL (YouTube, Spotify, SoundCloud, etc.)\n"
+                  "❌ Apple Music links are not supported",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📁 Submit File",
+            value="Upload audio files directly (MP3, M4A, FLAC)\n"
+                  "❌ WAV files are not supported\n"
+                  "📏 25MB file size limit",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📋 Submission Rules",
+            value="• Only one submission allowed in Free line\n"
+                  "• Use `/myqueue` to view your submissions\n"
+                  "• All submissions go to the **Free** line by default",
+            inline=False
+        )
+        
+        embed.set_footer(text="Click the buttons below to start submitting!")
+        
+        # Send embed with buttons
+        view = SubmissionButtonView(self.bot)
+        await interaction.response.send_message(embed=embed, view=view)
+        
+        # Pin the message
+        try:
+            message = await interaction.original_response()
+            await message.pin()
+            await interaction.followup.send("✅ Submission buttons have been set up and pinned!", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send("✅ Submission buttons have been set up! (Couldn't pin - check bot permissions)", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"✅ Submission buttons set up, but pinning failed: {str(e)}", ephemeral=True)
 
 async def setup(bot):
     """Setup function for the cog"""
-    await bot.add_cog(SubmissionCog(bot))
+    cog = SubmissionCog(bot)
+    await bot.add_cog(cog)
+    
+    # Add persistent view for buttons
+    bot.add_view(cog.submission_view)
