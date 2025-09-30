@@ -49,6 +49,14 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
             )
             return
         
+        # Block Apple Music links
+        if 'music.apple.com' in link_value.lower() or 'itunes.apple.com' in link_value.lower():
+            await interaction.response.send_message(
+                "❌ Apple Music links are not supported. Please use YouTube, Spotify, SoundCloud, or other supported platforms.",
+                ephemeral=True
+            )
+            return
+        
         # Check if user already has a submission in Free line
         existing_count = await self.bot.db.get_user_submission_count_in_line(
             interaction.user.id, QueueLine.FREE.value
@@ -116,16 +124,24 @@ class SubmissionCog(commands.Cog):
     )
     async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str):
         """Submit an MP3 file for review"""
-        # Validate file type (check both content type and extension)
-        valid_extensions = ('.mp3', '.wav', '.m4a', '.flac')
+        # Validate file type (check both content type and extension) - Block WAV files
+        valid_extensions = ('.mp3', '.m4a', '.flac')
         valid_content_types = ('audio/', 'video/')
+        
+        # Check for blocked file types
+        if file.filename.lower().endswith('.wav'):
+            await interaction.response.send_message(
+                "❌ WAV files are not supported. Please convert to MP3, M4A, or FLAC format.",
+                ephemeral=True
+            )
+            return
         
         is_valid_extension = file.filename.lower().endswith(valid_extensions)
         is_valid_content = file.content_type and any(file.content_type.startswith(ct) for ct in valid_content_types)
         
         if not (is_valid_extension or is_valid_content):
             await interaction.response.send_message(
-                "❌ Please upload a valid audio file (MP3, WAV, M4A, or FLAC).",
+                "❌ Please upload a valid audio file (MP3, M4A, or FLAC).",
                 ephemeral=True
             )
             return
