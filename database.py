@@ -12,18 +12,18 @@ from enum import Enum
 class QueueLine(Enum):
     """Enum for queue line types with priority order"""
     BACKTOBACK = "BackToBack"
-    DOUBLESKIP = "DoubleSkip" 
+    DOUBLESKIP = "DoubleSkip"
     SKIP = "Skip"
     FREE = "Free"
     CALLS_PLAYED = "Calls Played"
 
 class Database:
     """Async SQLite database handler for the music queue bot"""
-    
+
     def __init__(self, db_path: str = "music_queue.db"):
         self.db_path = db_path
         self._lock = asyncio.Lock()
-    
+
     async def initialize(self):
         """Initialize database tables"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -40,7 +40,7 @@ class Database:
                     position INTEGER DEFAULT 0
                 )
             """)
-            
+
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS channel_settings (
                     queue_line TEXT PRIMARY KEY,
@@ -48,17 +48,24 @@ class Database:
                     pinned_message_id INTEGER
                 )
             """)
-            
+
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS bot_settings (
                     key TEXT PRIMARY KEY,
                     value TEXT
                 )
             """)
-            
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS submission_channel (
+                    id INTEGER PRIMARY KEY,
+                    channel_id INTEGER UNIQUE
+                )
+            """)
+
             await db.commit()
-    
-    async def add_submission(self, user_id: int, username: str, artist_name: str, 
+
+    async def add_submission(self, user_id: int, username: str, artist_name: str,
                            song_name: str, link_or_file: str, queue_line: str) -> int:
         """Add a new submission to the database"""
         async with self._lock:
@@ -67,11 +74,11 @@ class Database:
                     INSERT INTO submissions (user_id, username, artist_name, song_name, link_or_file, queue_line)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (user_id, username, artist_name, song_name, link_or_file, queue_line))
-                
+
                 submission_id = cursor.lastrowid
                 await db.commit()
                 return submission_id or 0
-    
+
     async def get_user_submissions(self, user_id: int) -> List[Dict[str, Any]]:
         """Get all submissions for a specific user"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -81,7 +88,7 @@ class Database:
             """, (user_id,)) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
-    
+
     async def get_queue_submissions(self, queue_line: str) -> List[Dict[str, Any]]:
         """Get all submissions for a specific queue line"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -91,7 +98,7 @@ class Database:
             """, (queue_line,)) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
-    
+
     async def remove_submission(self, submission_id: int) -> bool:
         """Remove a submission by ID"""
         async with self._lock:
@@ -101,7 +108,7 @@ class Database:
                 """, (submission_id,))
                 await db.commit()
                 return cursor.rowcount > 0
-    
+
     async def move_submission(self, submission_id: int, target_line: str) -> bool:
         """Move a submission to a different queue line"""
         async with self._lock:
@@ -111,58 +118,58 @@ class Database:
                 """, (target_line, submission_id))
                 await db.commit()
                 return cursor.rowcount > 0
-    
+
     async def get_next_submission(self) -> Optional[Dict[str, Any]]:
         """Get the next submission following priority order"""
-        priority_order = [QueueLine.BACKTOBACK.value, QueueLine.DOUBLESKIP.value, 
+        priority_order = [QueueLine.BACKTOBACK.value, QueueLine.DOUBLESKIP.value,
                          QueueLine.SKIP.value, QueueLine.FREE.value]
-        
+
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             for queue_line in priority_order:
                 async with db.execute("""
-                    SELECT * FROM submissions WHERE queue_line = ? 
+                    SELECT * FROM submissions WHERE queue_line = ?
                     ORDER BY submission_time ASC LIMIT 1
                 """, (queue_line,)) as cursor:
                     row = await cursor.fetchone()
                     if row:
                         return dict(row)
         return None
-    
+
     async def take_next_to_calls_played(self) -> Optional[Dict[str, Any]]:
         """Atomically move the next submission to Calls Played line"""
-        priority_order = [QueueLine.BACKTOBACK.value, QueueLine.DOUBLESKIP.value, 
+        priority_order = [QueueLine.BACKTOBACK.value, QueueLine.DOUBLESKIP.value,
                          QueueLine.SKIP.value, QueueLine.FREE.value]
-        
+
         async with self._lock:
             async with aiosqlite.connect(self.db_path) as db:
                 db.row_factory = aiosqlite.Row
-                
+
                 # Find the next submission by priority
                 for queue_line in priority_order:
                     async with db.execute("""
-                        SELECT * FROM submissions WHERE queue_line = ? 
+                        SELECT * FROM submissions WHERE queue_line = ?
                         ORDER BY submission_time ASC LIMIT 1
                     """, (queue_line,)) as cursor:
                         row = await cursor.fetchone()
-                        
+
                         if row:
                             submission_dict = dict(row)
                             original_line = submission_dict['queue_line']
-                            
+
                             # Move it to Calls Played
                             await db.execute("""
                                 UPDATE submissions SET queue_line = ? WHERE id = ?
                             """, (QueueLine.CALLS_PLAYED.value, submission_dict['id']))
-                            
+
                             await db.commit()
-                            
+
                             # Return the submission with original line info
                             submission_dict['original_line'] = original_line
                             return submission_dict
-                
+
                 return None
-    
+
     async def set_channel_for_line(self, queue_line: str, channel_id: int, pinned_message_id: Optional[int] = None):
         """Set the channel for a queue line"""
         async with self._lock:
@@ -172,7 +179,7 @@ class Database:
                     VALUES (?, ?, ?)
                 """, (queue_line, channel_id, pinned_message_id))
                 await db.commit()
-    
+
     async def get_channel_for_line(self, queue_line: str) -> Optional[Dict[str, Any]]:
         """Get channel settings for a queue line"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -182,7 +189,7 @@ class Database:
             """, (queue_line,)) as cursor:
                 row = await cursor.fetchone()
                 return dict(row) if row else None
-    
+
     async def update_pinned_message(self, queue_line: str, pinned_message_id: int):
         """Update the pinned message ID for a queue line"""
         async with self._lock:
@@ -191,7 +198,7 @@ class Database:
                     UPDATE channel_settings SET pinned_message_id = ? WHERE queue_line = ?
                 """, (pinned_message_id, queue_line))
                 await db.commit()
-    
+
     async def get_user_submission_count_in_line(self, user_id: int, queue_line: str) -> int:
         """Get count of user's submissions in a specific line"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -200,3 +207,26 @@ class Database:
             """, (user_id, queue_line)) as cursor:
                 result = await cursor.fetchone()
                 return result[0] if result else 0
+
+    async def set_submission_channel(self, channel_id: int):
+        """Set the submission channel"""
+        async with self._lock:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute("""
+                    INSERT OR REPLACE INTO submission_channel (id, channel_id)
+                    VALUES (1, ?)
+                """, (channel_id,))
+                await db.commit()
+
+    async def get_submission_channel(self) -> Optional[int]:
+        """Get the submission channel ID"""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("""
+                SELECT channel_id FROM submission_channel WHERE id = 1
+            """) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else None
+
+    async def close(self):
+        """Close database connection"""
+        pass

@@ -128,6 +128,7 @@ class QueueCog(commands.Cog):
                 name="🔧 Admin Commands",
                 value=(
                     "**/setline** - Set channel for queue line\n"
+                    "**/setsubmissionchannel** - Set auto-moderated submission channel\n"
                     "**/move** - Move submission between lines\n"
                     "**/remove** - Remove a submission\n"
                     "**/next** - Get next submission to review"

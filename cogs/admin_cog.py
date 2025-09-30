@@ -155,6 +155,35 @@ class AdminCog(commands.Cog):
                 ephemeral=True
             )
     
+    @app_commands.command(name="setsubmissionchannel", description="Set the channel for submissions (auto-moderated)")
+    @app_commands.describe(channel="The text channel to use for submissions")
+    async def set_submission_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """Set the channel for submissions"""
+        if not self._has_admin_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", 
+                ephemeral=True
+            )
+            return
+        
+        try:
+            # Set submission channel
+            await self.bot.db.set_submission_channel(channel.id)
+            
+            embed = discord.Embed(
+                title="✅ Submission Channel Set",
+                description=f"Submissions channel is now set to {channel.mention}\n\n"
+                           f"Non-admin messages will be automatically removed and users will be guided to use `/submit` or `/submitfile` commands.",
+                color=discord.Color.green()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Error setting submission channel: {str(e)}", 
+                ephemeral=True
+            )
+    
     @app_commands.command(name="next", description="Get the next submission to review")
     async def next_submission(self, interaction: discord.Interaction):
         """Get the next submission following priority order"""
