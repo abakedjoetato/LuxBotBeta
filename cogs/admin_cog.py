@@ -225,7 +225,7 @@ class AdminCog(commands.Cog):
             else:
                 embed.add_field(name="File", value=next_sub['link_or_file'], inline=False)
             
-            embed.set_footer(text=f"Submitted on {next_sub['submission_time']}")
+            embed.set_footer(text=f"Submitted on {next_sub['submission_time']} | Luxurious Radio By Emerald Beats")
             
             # Send to admin who used the command
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -417,7 +417,7 @@ class AdminCog(commands.Cog):
             else:
                 embed.add_field(name="File", value=submission['link_or_file'], inline=False)
             
-            embed.set_footer(text=f"Originally submitted on {submission['submission_time']}")
+            embed.set_footer(text=f"Originally submitted on {submission['submission_time']} | Luxurious Radio By Emerald Beats")
             embed.timestamp = discord.utils.utcnow()
             
             # Send to bookmark channel

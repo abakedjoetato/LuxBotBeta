@@ -49,7 +49,7 @@ class QueueCog(commands.Cog):
                 
                 embed.description = description
             
-            embed.set_footer(text=f"Total submissions: {len(submissions)} | Last updated")
+            embed.set_footer(text=f"Total submissions: {len(submissions)} | Last updated | Luxurious Radio By Emerald Beats")
             embed.timestamp = discord.utils.utcnow()
             
             # Update or create pinned message
@@ -142,7 +142,7 @@ class QueueCog(commands.Cog):
                 inline=False
             )
         
-        embed.set_footer(text="Music submissions are reviewed in priority order")
+        embed.set_footer(text="Music submissions are reviewed in priority order | Luxurious Radio By Emerald Beats")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
