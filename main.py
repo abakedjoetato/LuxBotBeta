@@ -48,11 +48,12 @@ class MusicQueueBot(commands.Bot):
         await self.db.initialize()
 
         # Load cogs
-        await self.load_extension('cogs.submission_cog')
-        await self.load_extension('cogs.queue_cog')
-        await self.load_extension('cogs.admin_cog')
-        await self.load_extension('cogs.queue_view')
-        logging.info("All cogs loaded successfully")
+        try:
+            await self.load_extension('cogs.submission_cog')
+            await self.load_extension('cogs.queue_cog')
+            await self.load_extension('cogs.admin_cog')
+            await self.load_extension('cogs.queue_view')
+            logging.info("All cogs loaded successfully")
         except Exception as e:
             logging.error(f"Failed to load cogs: {e}")
 
