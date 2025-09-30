@@ -5,6 +5,7 @@ Queue Cog - Handles queue display and user queue commands
 import discord
 from discord.ext import commands
 from discord import app_commands
+from datetime import datetime
 from database import QueueLine
 from typing import Optional
 
@@ -42,7 +43,9 @@ class QueueCog(commands.Cog):
                 description = ""
                 for i, sub in enumerate(submissions, 1):
                     link_text = f" ([Link]({sub['link_or_file']}))" if sub['link_or_file'].startswith('http') else ""
-                    description += f"**{i}.** #{sub['id']} - {sub['username']} – *{sub['artist_name']} – {sub['song_name']}*{link_text}\n"
+                    # Format timestamp to show local time
+                    timestamp = f"<t:{int(discord.utils.parse_time(sub['submission_time']).timestamp())}:t>"
+                    description += f"**{i}.** #{sub['id']} - {sub['username']} – *{sub['artist_name']} – {sub['song_name']}*{link_text} | {timestamp}\n"
                 
                 embed.description = description
             
