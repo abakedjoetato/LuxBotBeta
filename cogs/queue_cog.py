@@ -42,7 +42,7 @@ class QueueCog(commands.Cog):
                 description = ""
                 for i, sub in enumerate(submissions, 1):
                     link_text = f" ([Link]({sub['link_or_file']}))" if sub['link_or_file'].startswith('http') else ""
-                    description += f"**{i}.** {sub['username']} – *{sub['artist_name']} – {sub['song_name']}*{link_text}\n"
+                    description += f"**{i}.** #{sub['id']} - {sub['username']} – *{sub['artist_name']} – {sub['song_name']}*{link_text}\n"ext}\n"
                 
                 embed.description = description
             
