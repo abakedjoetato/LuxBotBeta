@@ -39,6 +39,15 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
     
     async def on_submit(self, interaction: discord.Interaction):
         """Handle form submission"""
+        # Check if submissions are open
+        submissions_open = await self.bot.db.are_submissions_open()
+        if not submissions_open:
+            await interaction.response.send_message(
+                "❌ Submissions are currently closed. Please try again later.",
+                ephemeral=True
+            )
+            return
+        
         link_value = str(self.link_or_file.value).strip()
         
         # Check if it's a valid URL (simple but permissive check)
@@ -124,6 +133,15 @@ class SubmissionCog(commands.Cog):
     )
     async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str):
         """Submit an MP3 file for review"""
+        # Check if submissions are open
+        submissions_open = await self.bot.db.are_submissions_open()
+        if not submissions_open:
+            await interaction.response.send_message(
+                "❌ Submissions are currently closed. Please try again later.",
+                ephemeral=True
+            )
+            return
+        
         # Validate file type (check both content type and extension) - Block WAV files
         valid_extensions = ('.mp3', '.m4a', '.flac')
         valid_content_types = ('audio/', 'video/')

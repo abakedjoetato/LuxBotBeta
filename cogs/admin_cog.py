@@ -247,6 +247,89 @@ class AdminCog(commands.Cog):
                 f"❌ Error getting next submission: {str(e)}", 
                 ephemeral=True
             )
+    
+    @app_commands.command(name="opensubmissions", description="Open submissions for users")
+    async def open_submissions(self, interaction: discord.Interaction):
+        """Open submissions"""
+        if not self._has_admin_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", 
+                ephemeral=True
+            )
+            return
+        
+        try:
+            await self.bot.db.set_submissions_status(True)
+            
+            embed = discord.Embed(
+                title="✅ Submissions Opened",
+                description="Users can now submit music using `/submit` and `/submitfile` commands.",
+                color=discord.Color.green()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Error opening submissions: {str(e)}", 
+                ephemeral=True
+            )
+    
+    @app_commands.command(name="closesubmissions", description="Close submissions for users")
+    async def close_submissions(self, interaction: discord.Interaction):
+        """Close submissions"""
+        if not self._has_admin_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", 
+                ephemeral=True
+            )
+            return
+        
+        try:
+            await self.bot.db.set_submissions_status(False)
+            
+            embed = discord.Embed(
+                title="🚫 Submissions Closed",
+                description="Users can no longer submit music. Use `/opensubmissions` to re-enable.",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Error closing submissions: {str(e)}", 
+                ephemeral=True
+            )
+    
+    @app_commands.command(name="clearfree", description="Clear all submissions from the Free line")
+    async def clear_free_line(self, interaction: discord.Interaction):
+        """Clear all submissions from the Free line"""
+        if not self._has_admin_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ You don't have permission to use this command.", 
+                ephemeral=True
+            )
+            return
+        
+        try:
+            cleared_count = await self.bot.db.clear_free_line()
+            
+            # Update queue display for Free line
+            if hasattr(self.bot, 'get_cog') and self.bot.get_cog('QueueCog'):
+                queue_cog = self.bot.get_cog('QueueCog')
+                await queue_cog.update_queue_display(QueueLine.FREE.value)
+            
+            embed = discord.Embed(
+                title="🗑️ Free Line Cleared",
+                description=f"Removed {cleared_count} submission{'s' if cleared_count != 1 else ''} from the Free line.",
+                color=discord.Color.orange()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Error clearing Free line: {str(e)}", 
+                ephemeral=True
+            )
 
 async def setup(bot):
     """Setup function for the cog"""

@@ -131,7 +131,10 @@ class QueueCog(commands.Cog):
                     "**/setsubmissionchannel** - Set auto-moderated submission channel\n"
                     "**/move** - Move submission between lines\n"
                     "**/remove** - Remove a submission\n"
-                    "**/next** - Get next submission to review"
+                    "**/next** - Get next submission to review\n"
+                    "**/opensubmissions** - Open submissions for users\n"
+                    "**/closesubmissions** - Close submissions\n"
+                    "**/clearfree** - Clear all submissions from Free line"
                 ),
                 inline=False
             )

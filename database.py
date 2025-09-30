@@ -63,6 +63,18 @@ class Database:
                 )
             """)
 
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS submission_status (
+                    id INTEGER PRIMARY KEY,
+                    submissions_open BOOLEAN DEFAULT 1
+                )
+            """)
+
+            # Initialize submission status if not exists
+            await db.execute("""
+                INSERT OR IGNORE INTO submission_status (id, submissions_open) VALUES (1, 1)
+            """)
+
             await db.commit()
 
     async def add_submission(self, user_id: int, username: str, artist_name: str,
@@ -226,6 +238,42 @@ class Database:
             """) as cursor:
                 row = await cursor.fetchone()
                 return row[0] if row else None
+
+    async def set_submissions_status(self, open_status: bool):
+        """Set whether submissions are open or closed"""
+        async with self._lock:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute("""
+                    UPDATE submission_status SET submissions_open = ? WHERE id = 1
+                """, (open_status,))
+                await db.commit()
+
+    async def are_submissions_open(self) -> bool:
+        """Check if submissions are currently open"""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("""
+                SELECT submissions_open FROM submission_status WHERE id = 1
+            """) as cursor:
+                row = await cursor.fetchone()
+                return bool(row[0]) if row else True
+
+    async def clear_free_line(self) -> int:
+        """Clear all submissions from the Free line and return count of cleared submissions"""
+        async with self._lock:
+            async with aiosqlite.connect(self.db_path) as db:
+                # First get count
+                async with db.execute("""
+                    SELECT COUNT(*) FROM submissions WHERE queue_line = ?
+                """, (QueueLine.FREE.value,)) as cursor:
+                    count_result = await cursor.fetchone()
+                    count = count_result[0] if count_result else 0
+                
+                # Then delete
+                await db.execute("""
+                    DELETE FROM submissions WHERE queue_line = ?
+                """, (QueueLine.FREE.value,))
+                await db.commit()
+                return count
 
     async def close(self):
         """Close database connection"""
