@@ -92,6 +92,7 @@ class MusicQueueBot(commands.Bot):
 
 async def main():
     """Main function to run the bot"""
+    # Force a new commit to trigger a reboot
     # Check for bot token
     token = os.getenv('DISCORD_BOT_TOKEN')
     if not token:
