@@ -249,18 +249,6 @@ class AdminCog(commands.Cog):
             
             await self._update_queues(next_sub['original_line'], QueueLine.CALLS_PLAYED.value)
             
-            # Announce to the 'Calls Played' channel if configured
-            calls_played_channel_id = await self.bot.db.get_calls_played_channel()
-            if calls_played_channel_id:
-                calls_played_channel = self.bot.get_channel(calls_played_channel_id)
-                if calls_played_channel:
-                    try:
-                        await calls_played_channel.send(embed=embed)
-                    except discord.Forbidden:
-                        await interaction.followup.send("⚠️ Could not send to 'Calls Played' channel (missing permissions).", ephemeral=True)
-                    except discord.HTTPException as e:
-                        await interaction.followup.send(f"⚠️ Error sending to 'Calls Played' channel: {e}", ephemeral=True)
-
             try:
                 await interaction.user.send(embed=embed)
             except discord.Forbidden:
@@ -390,22 +378,6 @@ class AdminCog(commands.Cog):
             
         except Exception as e:
             await interaction.response.send_message(f"❌ Error bookmarking submission: {str(e)}", ephemeral=True)
-
-    @app_commands.command(name="setcallsplayedchannel", description="Set the channel for 'Calls Played' announcements")
-    @app_commands.describe(channel="The text channel to use for these announcements")
-    @is_admin()
-    async def set_calls_played_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        """Sets the channel for 'Calls Played' announcements."""
-        try:
-            await self.bot.db.set_calls_played_channel(channel.id)
-            embed = discord.Embed(
-                title="✅ 'Calls Played' Channel Set",
-                description=f"The 'Calls Played' announcement channel is now set to {channel.mention}",
-                color=discord.Color.green()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Error setting 'Calls Played' channel: {str(e)}", ephemeral=True)
 
 async def setup(bot):
     """Setup function for the cog"""
