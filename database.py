@@ -200,32 +200,31 @@ class Database:
         return None
 
     async def take_next_to_calls_played(self) -> Optional[Dict[str, Any]]:
-        """Atomically move the next submission to Calls Played line"""
+        """Atomically move the next submission to Calls Played line and ensure commit."""
         priority_order = [QueueLine.BACKTOBACK.value, QueueLine.DOUBLESKIP.value,
                          QueueLine.SKIP.value, QueueLine.FREE.value]
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            await db.execute("BEGIN")
-            try:
-                for queue_line in priority_order:
-                    async with db.execute("SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT 1", (queue_line,)) as cursor:
-                        row = await cursor.fetchone()
-                        if row:
-                            submission_dict = dict(row)
-                            original_line = submission_dict['queue_line']
-                            await db.execute(
-                                "UPDATE submissions SET queue_line = ?, played_time = CURRENT_TIMESTAMP WHERE id = ?",
-                                (QueueLine.CALLS_PLAYED.value, submission_dict['id'])
-                            )
-                            await db.commit()
-                            submission_dict['original_line'] = original_line
-                            return submission_dict
-                await db.commit()
-                return None
-            except Exception:
-                await db.rollback()
-                raise
+            for queue_line in priority_order:
+                # Find the next submission without holding a transaction open
+                async with db.execute("SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT 1", (queue_line,)) as cursor:
+                    row = await cursor.fetchone()
+
+                if row:
+                    submission_dict = dict(row)
+                    original_line = submission_dict['queue_line']
+
+                    # Perform the update and commit in a single transaction
+                    await db.execute(
+                        "UPDATE submissions SET queue_line = ?, played_time = CURRENT_TIMESTAMP WHERE id = ?",
+                        (QueueLine.CALLS_PLAYED.value, submission_dict['id'])
+                    )
+                    await db.commit() # Commit the change to disk
+
+                    submission_dict['original_line'] = original_line
+                    return submission_dict
+        return None
 
     async def set_channel_for_line(self, queue_line: str, channel_id: int, pinned_message_id: Optional[int] = None):
         """Set the channel for a queue line"""
@@ -296,9 +295,21 @@ class Database:
             return count
 
     async def set_bookmark_channel(self, channel_id: int):
-        """Set the bookmark channel"""
+        """Set the bookmark channel, ensuring the change is committed."""
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bookmark_channel', ?)", (str(channel_id),))
+            # Use a more explicit update-or-insert pattern to ensure commit behavior.
+            # First, attempt to update an existing record.
+            cursor = await db.execute(
+                "UPDATE bot_settings SET value = ? WHERE key = 'bookmark_channel'",
+                (str(channel_id),)
+            )
+            # If no record was updated, it means one doesn't exist, so insert it.
+            if cursor.rowcount == 0:
+                await db.execute(
+                    "INSERT INTO bot_settings (key, value) VALUES ('bookmark_channel', ?)",
+                    (str(channel_id),)
+                )
+            # Explicitly commit the transaction to save the changes to the database file.
             await db.commit()
 
     async def get_bookmark_channel(self) -> Optional[int]:
