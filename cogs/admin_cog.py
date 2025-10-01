@@ -18,19 +18,22 @@ class NextActionView(discord.ui.View):
     @discord.ui.button(label="Bookmark", style=discord.ButtonStyle.success, emoji="🔖")
     async def bookmark_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
+            # Defer interaction to prevent timeout and allow for follow-up messages
+            await interaction.response.defer(ephemeral=True)
+
             bookmark_channel_id = await self.bot.db.get_bookmark_channel()
             if not bookmark_channel_id:
-                await interaction.response.send_message("❌ No bookmark channel has been set. Use `/setbookmarkchannel` first.", ephemeral=True)
+                await interaction.followup.send("❌ No bookmark channel has been set. Use `/setbookmarkchannel` first.", ephemeral=True)
                 return
 
             bookmark_channel = self.bot.get_channel(bookmark_channel_id)
             if not bookmark_channel:
-                await interaction.response.send_message("❌ Bookmark channel not found. Please set a new one with `/setbookmarkchannel`.", ephemeral=True)
+                await interaction.followup.send("❌ Bookmark channel not found. Please set a new one with `/setbookmarkchannel`.", ephemeral=True)
                 return
 
             submission = await self.bot.db.get_submission_by_id(self.submission_id)
             if not submission:
-                await interaction.response.send_message(f"❌ Submission #{self.submission_id} not found.", ephemeral=True)
+                await interaction.followup.send(f"❌ Submission #{self.submission_id} not found.", ephemeral=True)
                 return
 
             embed = discord.Embed(
@@ -54,11 +57,15 @@ class NextActionView(discord.ui.View):
             embed.set_footer(text=f"Originally submitted on {submission['submission_time']} | Luxurious Radio By Emerald Beats")
             embed.timestamp = discord.utils.utcnow()
 
+            # Perform the main action
             await bookmark_channel.send(embed=embed)
 
+            # Update the original message with the disabled button
             button.disabled = True
             button.label = "Bookmarked"
-            await interaction.response.edit_message(view=self)
+            await interaction.edit_original_response(view=self)
+
+            # Send a confirmation message
             await interaction.followup.send(f"✅ Submission #{self.submission_id} has been bookmarked to {bookmark_channel.mention}", ephemeral=True)
 
         except Exception as e:
@@ -66,6 +73,7 @@ class NextActionView(discord.ui.View):
             if interaction.response.is_done():
                 await interaction.followup.send(error_message, ephemeral=True)
             else:
+                # This is a fallback, but defer should make this path unlikely
                 await interaction.response.send_message(error_message, ephemeral=True)
 
 class AdminCog(commands.Cog):
