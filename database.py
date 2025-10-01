@@ -316,6 +316,19 @@ class Database:
                 row = await cursor.fetchone()
                 return dict(row) if row else None
 
+    async def set_calls_played_channel(self, channel_id: int):
+        """Set the channel for 'Calls Played' announcements."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('calls_played_channel', ?)", (str(channel_id),))
+            await db.commit()
+
+    async def get_calls_played_channel(self) -> Optional[int]:
+        """Get the channel ID for 'Calls Played' announcements."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT value FROM bot_settings WHERE key = 'calls_played_channel'") as cursor:
+                row = await cursor.fetchone()
+                return int(row[0]) if row else None
+
     async def close(self):
         """Close database connection"""
         pass
