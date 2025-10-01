@@ -55,16 +55,22 @@ class PaginatedQueueView(discord.ui.View):
             start_number = (self.current_page - 1) * self.entries_per_page + 1
             for i, sub in enumerate(page_submissions, start_number):
                 link_text = f" ([Link]({sub['link_or_file']}))" if sub['link_or_file'].startswith('http') else " (File)"
-                # Safely parse timestamp
-                try:
-                    ts = datetime.datetime.fromisoformat(sub['submission_time'])
-                    timestamp_str = f"<t:{int(ts.timestamp())}:R>"
-                except (ValueError, TypeError):
-                    timestamp_str = ""
+                # Determine which timestamp to use
+                is_calls_played = self.queue_line == QueueLine.CALLS_PLAYED.value
+                time_to_display = sub.get('played_time') if is_calls_played else sub.get('submission_time')
+                time_prefix = "Played" if is_calls_played else "Submitted"
+
+                timestamp_str = ""
+                if time_to_display:
+                    try:
+                        ts = datetime.datetime.fromisoformat(time_to_display)
+                        timestamp_str = f" ({time_prefix} <t:{int(ts.timestamp())}:R>)"
+                    except (ValueError, TypeError):
+                        pass # Keep timestamp_str empty if parsing fails
 
                 description_lines.append(
                     f"**{i}.** `#{sub['id']}`: **{sub['artist_name']} – {sub['song_name']}** "
-                    f"by *{sub['username']}* {timestamp_str}{link_text}"
+                    f"by *{sub['username']}*{timestamp_str}{link_text}"
                 )
             embed.description = "\n".join(description_lines)
         
