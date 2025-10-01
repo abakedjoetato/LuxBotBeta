@@ -63,8 +63,17 @@ class MusicQueueBot(commands.Bot):
 
         # Sync slash commands
         try:
-            synced = await self.tree.sync()
-            logging.info(f"Synced {len(synced)} command(s)")
+            guild_id = os.getenv('GUILD_ID')
+            if guild_id:
+                # If GUILD_ID is set, sync commands to that specific guild
+                guild = discord.Object(id=int(guild_id))
+                self.tree.copy_global_to(guild=guild)
+                synced = await self.tree.sync(guild=guild)
+                logging.info(f"Synced {len(synced)} command(s) to guild {guild_id}")
+            else:
+                # Otherwise, sync globally (takes longer to propagate)
+                synced = await self.tree.sync()
+                logging.info(f"Synced {len(synced)} command(s) globally")
         except Exception as e:
             logging.error(f"Failed to sync commands: {e}")
 
