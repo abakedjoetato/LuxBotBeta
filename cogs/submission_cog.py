@@ -223,6 +223,34 @@ class SubmissionCog(commands.Cog):
         # Temporary storage for pending file uploads (user_id -> metadata)
         self.pending_uploads = {}
 
+    async def cog_load(self):
+        """Called when cog is loaded - register persistent views and start cleanup task"""
+        self.bot.add_view(self.submission_view)
+        self.cleanup_task.start()
+
+    async def cog_unload(self):
+        """Called when cog is unloaded - stop cleanup task"""
+        self.cleanup_task.cancel()
+
+    @tasks.loop(minutes=1)
+    async def cleanup_task(self):
+        """Clean up expired pending uploads every minute"""
+        import datetime
+        current_time = datetime.datetime.now()
+        expired_users = []
+        
+        for user_id, data in self.pending_uploads.items():
+            if current_time - data['timestamp'] > datetime.timedelta(minutes=5):
+                expired_users.append(user_id)
+        
+        for user_id in expired_users:
+            del self.pending_uploads[user_id]
+
+    @cleanup_task.before_loop
+    async def before_cleanup_task(self):
+        """Wait until bot is ready before starting cleanup task"""
+        await self.bot.wait_until_ready()
+
     @app_commands.command(name="submit", description="Submit music for review using a link")
     async def submit(self, interaction: discord.Interaction):
         """Open submission modal for link submissions"""
@@ -506,33 +534,6 @@ class SubmissionCog(commands.Cog):
             await queue_cog.update_queue_display(QueueLine.FREE.value)
 
     @app_commands.command(name="setupsubmissionbuttons", description="[ADMIN] Setup submission buttons in current channel")
-    async def cog_load(self):
-        """Called when cog is loaded - start cleanup task"""
-        self.cleanup_task.start()
-
-    async def cog_unload(self):
-        """Called when cog is unloaded - stop cleanup task"""
-        self.cleanup_task.cancel()
-
-    @commands.loop(minutes=1)
-    async def cleanup_task(self):
-        """Clean up expired pending uploads every minute"""
-        import datetime
-        current_time = datetime.datetime.now()
-        expired_users = []
-        
-        for user_id, data in self.pending_uploads.items():
-            if current_time - data['timestamp'] > datetime.timedelta(minutes=5):
-                expired_users.append(user_id)
-        
-        for user_id in expired_users:
-            del self.pending_uploads[user_id]
-
-    @cleanup_task.before_loop
-    async def before_cleanup_task(self):
-        """Wait until bot is ready before starting cleanup task"""
-        await self.bot.wait_until_ready()
-
     async def setup_submission_buttons(self, interaction: discord.Interaction):
         """Setup submission buttons embed (admin only)"""
         # Check admin permissions
