@@ -56,11 +56,10 @@ class NextActionView(discord.ui.View):
 
             await bookmark_channel.send(embed=embed)
 
-            await interaction.response.send_message(f"✅ Submission #{self.submission_id} has been bookmarked to {bookmark_channel.mention}", ephemeral=True)
-
             button.disabled = True
             button.label = "Bookmarked"
-            await interaction.message.edit(view=self)
+            await interaction.response.edit_message(view=self)
+            await interaction.followup.send(f"✅ Submission #{self.submission_id} has been bookmarked to {bookmark_channel.mention}", ephemeral=True)
 
         except Exception as e:
             error_message = f"❌ Error bookmarking submission: {str(e)}"
