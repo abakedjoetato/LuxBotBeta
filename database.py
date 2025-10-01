@@ -97,19 +97,31 @@ class Database:
                 return [dict(row) for row in rows]
 
     async def get_queue_submissions(self, queue_line: str) -> List[Dict[str, Any]]:
-        """Get all submissions for a specific queue line"""
+        """
+        Get all submissions for a specific queue line.
+        Sorts "Calls Played" by most recent, and others by oldest.
+        """
+        sort_order = "DESC" if queue_line == QueueLine.CALLS_PLAYED.value else "ASC"
+        query = f"SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time {sort_order}"
+
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC", (queue_line,)) as cursor:
+            async with db.execute(query, (queue_line,)) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
     async def get_queue_submissions_paginated(self, queue_line: str, page: int, per_page: int) -> List[Dict[str, Any]]:
-        """Get submissions for a specific queue line with pagination"""
+        """
+        Get submissions for a specific queue line with pagination.
+        Sorts "Calls Played" by most recent, and others by oldest.
+        """
         offset = (page - 1) * per_page
+        sort_order = "DESC" if queue_line == QueueLine.CALLS_PLAYED.value else "ASC"
+        query = f"SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time {sort_order} LIMIT ? OFFSET ?"
+
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT ? OFFSET ?", (queue_line, per_page, offset)) as cursor:
+            async with db.execute(query, (queue_line, per_page, offset)) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
