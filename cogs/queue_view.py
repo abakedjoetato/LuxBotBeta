@@ -190,7 +190,8 @@ class QueueViewCog(commands.Cog):
         if not channel:
             return
 
-        view = PaginatedQueueView(self.bot, queue_line)
+        entries_per_page = 25 if queue_line == QueueLine.CALLS_PLAYED.value else 10
+        view = PaginatedQueueView(self.bot, queue_line, entries_per_page=entries_per_page)
         await view.update_data()
         view.update_buttons()
         embed = view.create_embed()
