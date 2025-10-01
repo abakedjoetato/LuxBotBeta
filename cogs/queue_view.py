@@ -13,7 +13,7 @@ class PaginatedQueueView(discord.ui.View):
     """Discord View for paginated queue display with navigation buttons"""
     
     def __init__(self, bot, queue_line: str, entries_per_page: int = 10):
-        super().__init__(timeout=900)  # 15 minutes timeout
+        super().__init__(timeout=None)  # Never timeout
         self.bot = bot
         self.queue_line = queue_line
         self.entries_per_page = entries_per_page
@@ -69,7 +69,7 @@ class PaginatedQueueView(discord.ui.View):
                         pass # Keep timestamp_str empty if parsing fails
 
                 description_lines.append(
-                    f"**{i}.** `#{sub['id']}`: **{sub['artist_name']} – {sub['song_name']}** "
+                    f"**{i}.** `#{sub['public_id']}`: **{sub['artist_name']} – {sub['song_name']}** "
                     f"by *{sub['username']}*{timestamp_str}{link_text}"
                 )
             embed.description = "\n".join(description_lines)
