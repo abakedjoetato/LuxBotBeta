@@ -36,9 +36,16 @@ class Database:
                     link_or_file TEXT,
                     queue_line TEXT NOT NULL,
                     submission_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    position INTEGER DEFAULT 0
+                    position INTEGER DEFAULT 0,
+                    played_time DATETIME
                 )
             """)
+
+            # For existing databases, add played_time column if it doesn't exist
+            async with db.execute("PRAGMA table_info(submissions)") as cursor:
+                columns = [row[1] for row in await cursor.fetchall()]
+            if 'played_time' not in columns:
+                await db.execute("ALTER TABLE submissions ADD COLUMN played_time DATETIME")
 
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS channel_settings (
@@ -99,10 +106,12 @@ class Database:
     async def get_queue_submissions(self, queue_line: str) -> List[Dict[str, Any]]:
         """
         Get all submissions for a specific queue line.
-        Sorts "Calls Played" by most recent, and others by oldest.
+        Sorts "Calls Played" by played time (most recent first), and others by submission time (oldest first).
         """
-        sort_order = "DESC" if queue_line == QueueLine.CALLS_PLAYED.value else "ASC"
-        query = f"SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time {sort_order}"
+        if queue_line == QueueLine.CALLS_PLAYED.value:
+            query = "SELECT * FROM submissions WHERE queue_line = ? AND played_time IS NOT NULL ORDER BY played_time DESC"
+        else:
+            query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC"
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
@@ -113,11 +122,13 @@ class Database:
     async def get_queue_submissions_paginated(self, queue_line: str, page: int, per_page: int) -> List[Dict[str, Any]]:
         """
         Get submissions for a specific queue line with pagination.
-        Sorts "Calls Played" by most recent, and others by oldest.
+        Sorts "Calls Played" by played time (most recent first), and others by submission time (oldest first).
         """
         offset = (page - 1) * per_page
-        sort_order = "DESC" if queue_line == QueueLine.CALLS_PLAYED.value else "ASC"
-        query = f"SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time {sort_order} LIMIT ? OFFSET ?"
+        if queue_line == QueueLine.CALLS_PLAYED.value:
+            query = "SELECT * FROM submissions WHERE queue_line = ? AND played_time IS NOT NULL ORDER BY played_time DESC LIMIT ? OFFSET ?"
+        else:
+            query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT ? OFFSET ?"
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
@@ -203,7 +214,10 @@ class Database:
                         if row:
                             submission_dict = dict(row)
                             original_line = submission_dict['queue_line']
-                            await db.execute("UPDATE submissions SET queue_line = ? WHERE id = ?", (QueueLine.CALLS_PLAYED.value, submission_dict['id']))
+                            await db.execute(
+                                "UPDATE submissions SET queue_line = ?, played_time = CURRENT_TIMESTAMP WHERE id = ?",
+                                (QueueLine.CALLS_PLAYED.value, submission_dict['id'])
+                            )
                             await db.commit()
                             submission_dict['original_line'] = original_line
                             return submission_dict
