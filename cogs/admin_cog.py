@@ -9,6 +9,66 @@ from database import QueueLine
 from typing import Optional
 from .checks import is_admin
 
+class NextActionView(discord.ui.View):
+    def __init__(self, bot, submission_id: int):
+        super().__init__(timeout=3600)  # 1 hour timeout
+        self.bot = bot
+        self.submission_id = submission_id
+
+    @discord.ui.button(label="Bookmark", style=discord.ButtonStyle.success, emoji="🔖")
+    async def bookmark_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            bookmark_channel_id = await self.bot.db.get_bookmark_channel()
+            if not bookmark_channel_id:
+                await interaction.response.send_message("❌ No bookmark channel has been set. Use `/setbookmarkchannel` first.", ephemeral=True)
+                return
+
+            bookmark_channel = self.bot.get_channel(bookmark_channel_id)
+            if not bookmark_channel:
+                await interaction.response.send_message("❌ Bookmark channel not found. Please set a new one with `/setbookmarkchannel`.", ephemeral=True)
+                return
+
+            submission = await self.bot.db.get_submission_by_id(self.submission_id)
+            if not submission:
+                await interaction.response.send_message(f"❌ Submission #{self.submission_id} not found.", ephemeral=True)
+                return
+
+            embed = discord.Embed(
+                title="🔖 Bookmarked Submission",
+                description=f"Bookmarked by {interaction.user.mention}",
+                color=discord.Color.gold()
+            )
+
+            embed.add_field(name="Submission ID", value=f"#{submission['id']}", inline=True)
+            embed.add_field(name="Queue Line", value=submission['queue_line'], inline=True)
+            embed.add_field(name="Submitted By", value=submission['username'], inline=True)
+            embed.add_field(name="Artist", value=submission['artist_name'], inline=True)
+            embed.add_field(name="Song", value=submission['song_name'], inline=True)
+            embed.add_field(name="User ID", value=submission['user_id'], inline=True)
+
+            if submission['link_or_file'].startswith('http'):
+                embed.add_field(name="Link", value=f"[Click Here]({submission['link_or_file']})", inline=False)
+            else:
+                embed.add_field(name="File", value=submission['link_or_file'], inline=False)
+
+            embed.set_footer(text=f"Originally submitted on {submission['submission_time']} | Luxurious Radio By Emerald Beats")
+            embed.timestamp = discord.utils.utcnow()
+
+            await bookmark_channel.send(embed=embed)
+
+            await interaction.response.send_message(f"✅ Submission #{self.submission_id} has been bookmarked to {bookmark_channel.mention}", ephemeral=True)
+
+            button.disabled = True
+            button.label = "Bookmarked"
+            await interaction.message.edit(view=self)
+
+        except Exception as e:
+            error_message = f"❌ Error bookmarking submission: {str(e)}"
+            if interaction.response.is_done():
+                await interaction.followup.send(error_message, ephemeral=True)
+            else:
+                await interaction.response.send_message(error_message, ephemeral=True)
+
 class AdminCog(commands.Cog):
     """Cog for administrative queue management"""
     
@@ -180,10 +240,23 @@ class AdminCog(commands.Cog):
             
             embed.set_footer(text=f"Submitted on {next_sub['submission_time']} | Luxurious Radio By Emerald Beats")
             
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            view = NextActionView(self.bot, next_sub['id'])
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
             
             await self._update_queues(next_sub['original_line'], QueueLine.CALLS_PLAYED.value)
             
+            # Announce to the 'Calls Played' channel if configured
+            calls_played_channel_id = await self.bot.db.get_calls_played_channel()
+            if calls_played_channel_id:
+                calls_played_channel = self.bot.get_channel(calls_played_channel_id)
+                if calls_played_channel:
+                    try:
+                        await calls_played_channel.send(embed=embed)
+                    except discord.Forbidden:
+                        await interaction.followup.send("⚠️ Could not send to 'Calls Played' channel (missing permissions).", ephemeral=True)
+                    except discord.HTTPException as e:
+                        await interaction.followup.send(f"⚠️ Error sending to 'Calls Played' channel: {e}", ephemeral=True)
+
             try:
                 await interaction.user.send(embed=embed)
             except discord.Forbidden:
@@ -313,6 +386,22 @@ class AdminCog(commands.Cog):
             
         except Exception as e:
             await interaction.response.send_message(f"❌ Error bookmarking submission: {str(e)}", ephemeral=True)
+
+    @app_commands.command(name="setcallsplayedchannel", description="Set the channel for 'Calls Played' announcements")
+    @app_commands.describe(channel="The text channel to use for these announcements")
+    @is_admin()
+    async def set_calls_played_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """Sets the channel for 'Calls Played' announcements."""
+        try:
+            await self.bot.db.set_calls_played_channel(channel.id)
+            embed = discord.Embed(
+                title="✅ 'Calls Played' Channel Set",
+                description=f"The 'Calls Played' announcement channel is now set to {channel.mention}",
+                color=discord.Color.green()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Error setting 'Calls Played' channel: {str(e)}", ephemeral=True)
 
 async def setup(bot):
     """Setup function for the cog"""
