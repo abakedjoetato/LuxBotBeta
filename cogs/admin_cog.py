@@ -60,13 +60,10 @@ class NextActionView(discord.ui.View):
             # Perform the main action
             await bookmark_channel.send(embed=embed)
 
-            # Update the original message with the disabled button
+            # Update the original message with the disabled button to confirm success
             button.disabled = True
             button.label = "Bookmarked"
             await interaction.edit_original_response(view=self)
-
-            # Send a confirmation message
-            await interaction.followup.send(f"✅ Submission #{self.submission_id} has been bookmarked to {bookmark_channel.mention}", ephemeral=True)
 
         except Exception as e:
             error_message = f"❌ Error bookmarking submission: {str(e)}"
