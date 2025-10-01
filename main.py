@@ -49,10 +49,14 @@ class MusicQueueBot(commands.Bot):
 
         # Load cogs
         try:
+            # Load view cogs first as other cogs may depend on them
+            await self.load_extension('cogs.queue_view')
+
+            # Load functional cogs
             await self.load_extension('cogs.submission_cog')
             await self.load_extension('cogs.queue_cog')
             await self.load_extension('cogs.admin_cog')
-            await self.load_extension('cogs.queue_view')
+
             logging.info("All cogs loaded successfully")
         except Exception as e:
             logging.error(f"Failed to load cogs: {e}")
