@@ -73,55 +73,7 @@ class Database:
                 INSERT OR IGNORE INTO submission_status (id, submissions_open) VALUES (1, 1)
             """)
 
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS pending_submissions (
-                    user_id INTEGER PRIMARY KEY,
-                    artist_name TEXT NOT NULL,
-                    song_name TEXT NOT NULL,
-                    channel_id INTEGER NOT NULL,
-                    request_time DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
             await db.commit()
-
-    async def add_pending_submission(self, user_id: int, artist_name: str, song_name: str, channel_id: int):
-        """Add or replace a pending file submission"""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("""
-                INSERT OR REPLACE INTO pending_submissions (user_id, artist_name, song_name, channel_id)
-                VALUES (?, ?, ?, ?)
-            """, (user_id, artist_name, song_name, channel_id))
-            await db.commit()
-
-    async def get_pending_submission(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """Get a pending submission by user ID"""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM pending_submissions WHERE user_id = ?", (user_id,)) as cursor:
-                row = await cursor.fetchone()
-                return dict(row) if row else None
-
-    async def remove_pending_submission(self, user_id: int) -> bool:
-        """Remove a pending submission by user ID"""
-        async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute("DELETE FROM pending_submissions WHERE user_id = ?", (user_id,))
-            await db.commit()
-            return cursor.rowcount > 0
-
-    async def clear_expired_pending_submissions(self, expiry_minutes: int = 5) -> int:
-        """Clear expired pending submissions and return count of cleared entries"""
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("BEGIN"):
-                async with db.execute(f"SELECT COUNT(*) FROM pending_submissions WHERE request_time < DATETIME('now', '-{expiry_minutes} minutes')") as cursor:
-                    count_result = await cursor.fetchone()
-                    count = count_result[0] if count_result else 0
-
-                if count > 0:
-                    await db.execute(f"DELETE FROM pending_submissions WHERE request_time < DATETIME('now', '-{expiry_minutes} minutes')")
-
-            await db.commit()
-            return count
 
     async def add_submission(self, user_id: int, username: str, artist_name: str,
                            song_name: str, link_or_file: str, queue_line: str) -> int:

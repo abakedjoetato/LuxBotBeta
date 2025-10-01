@@ -10,66 +10,6 @@ from typing import Optional
 from database import QueueLine
 from .checks import submissions_open, check_submissions_open, is_admin
 
-class FileSubmissionModal(discord.ui.Modal, title='Submit Music File'):
-    """Modal form for file submissions with metadata"""
-
-    def __init__(self, bot):
-        super().__init__()
-        self.bot = bot
-
-    artist_name = discord.ui.TextInput(
-        label='Artist Name',
-        placeholder='Enter the artist name...',
-        required=True,
-        max_length=100
-    )
-
-    song_name = discord.ui.TextInput(
-        label='Song Name',
-        placeholder='Enter the song title...',
-        required=True,
-        max_length=100
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        """Handle file submission form - store metadata and request file upload"""
-        if not await check_submissions_open(interaction):
-            return
-
-        existing_count = await self.bot.db.get_user_submission_count_in_line(
-            interaction.user.id, QueueLine.FREE.value
-        )
-
-        if existing_count > 0:
-            await interaction.response.send_message(
-                "❌ You already have a submission in the Free line.",
-                ephemeral=True
-            )
-            return
-
-        await self.bot.db.add_pending_submission(
-            user_id=interaction.user.id,
-            artist_name=self.artist_name.value.strip(),
-            song_name=self.song_name.value.strip(),
-            channel_id=interaction.channel_id
-        )
-
-        embed = discord.Embed(
-            title="📁 Upload Your File Now",
-            description="Perfect! Now upload your audio file by **dragging and dropping** or **attaching** it to your next message.\n\n"
-                       f"**Artist:** {self.artist_name.value}\n"
-                       f"**Song:** {self.song_name.value}\n\n"
-                       "✅ **Supported:** MP3, M4A, FLAC\n"
-                       "❌ **Not Supported:** WAV files\n"
-                       "📏 **Size Limit:** 25MB",
-            color=discord.Color.green()
-        )
-        embed.set_footer(text="Just upload your file - no commands needed! This will timeout in 5 minutes | Luxurious Radio By Emerald Beats")
-
-        if not interaction.response.is_done():
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        else:
-            await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
@@ -180,8 +120,15 @@ class SubmissionButtonView(discord.ui.View):
     @discord.ui.button(label='Submit File', style=discord.ButtonStyle.secondary, emoji='📁', custom_id='submit_file_button')
     async def submit_file_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle file submission button"""
-        modal = FileSubmissionModal(self.bot)
-        await interaction.response.send_modal(modal)
+        embed = discord.Embed(
+            title="📁 Use the `/submitfile` Command",
+            description="To submit a file, please use the `/submitfile` command directly in the chat.\n\n"
+                        "**Example:**\n"
+                        "`/submitfile` `file:<your_audio_file>` `artist_name:Your Artist` `song_name:Your Song`",
+            color=discord.Color.blue()
+        )
+        embed.set_footer(text="This ensures your file is uploaded correctly with all required information.")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class SubmissionCog(commands.Cog):
     """Cog for handling music submissions"""
@@ -192,21 +139,9 @@ class SubmissionCog(commands.Cog):
 
     async def cog_load(self):
         self.bot.add_view(self.submission_view)
-        self.cleanup_task.start()
 
     async def cog_unload(self):
-        self.cleanup_task.cancel()
-
-    @tasks.loop(minutes=5)
-    async def cleanup_task(self):
-        """Clean up expired pending uploads every 5 minutes"""
-        cleared_count = await self.bot.db.clear_expired_pending_submissions(expiry_minutes=5)
-        if cleared_count > 0:
-            print(f"Cleared {cleared_count} expired pending submissions.")
-
-    @cleanup_task.before_loop
-    async def before_cleanup_task(self):
-        await self.bot.wait_until_ready()
+        pass
 
     @app_commands.command(name="submit", description="Submit music for review using a link")
     @submissions_open()
@@ -215,8 +150,12 @@ class SubmissionCog(commands.Cog):
         modal = SubmissionModal(self.bot)
         await interaction.response.send_modal(modal)
 
-    @app_commands.command(name="submitfile", description="Submit an MP3 file for review")
-    @app_commands.describe(file="Upload your MP3 file", artist_name="Name of the artist", song_name="Title of the song")
+    @app_commands.command(name="submitfile", description="Submit an audio file for review (MP3, M4A, FLAC)")
+    @app_commands.describe(
+        file="Upload your audio file (MP3, M4A, FLAC)",
+        artist_name="Name of the artist",
+        song_name="Title of the song"
+    )
     @submissions_open()
     async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str):
         """Submit an MP3 file for review"""
@@ -298,61 +237,6 @@ class SubmissionCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        """Listen for file uploads from users with pending metadata"""
-        if message.author.bot: return
-        
-        pending_data = await self.bot.db.get_pending_submission(message.author.id)
-        if not pending_data or not message.attachments or message.channel.id != pending_data['channel_id']:
-            return
-
-        file = message.attachments[0]
-        
-        try:
-            await self._process_pending_file_upload(message, file, pending_data)
-            await self.bot.db.remove_pending_submission(message.author.id)
-        except Exception as e:
-            await message.channel.send(f"{message.author.mention} ❌ Error processing your file: {str(e)}", delete_after=15)
-
-    async def _process_pending_file_upload(self, message, file, pending_data):
-        """Process file upload with stored metadata from the database"""
-        if file.filename.lower().endswith('.wav'):
-            await message.channel.send(f"{message.author.mention} ❌ WAV files are not supported.", delete_after=15)
-            return
-
-        if not file.filename.lower().endswith(('.mp3', '.m4a', '.flac')):
-            await message.channel.send(f"{message.author.mention} ❌ Please upload a valid audio file.", delete_after=15)
-            return
-
-        if file.size > 25 * 1024 * 1024:
-            await message.channel.send(f"{message.author.mention} ❌ File is too large (limit is 25MB).", delete_after=15)
-            return
-
-        existing_count = await self.bot.db.get_user_submission_count_in_line(message.author.id, QueueLine.FREE.value)
-        if existing_count > 0:
-            await message.channel.send(f"{message.author.mention} ❌ You already have a submission in the Free line.", delete_after=15)
-            return
-
-        submission_id = await self.bot.db.add_submission(
-            user_id=message.author.id,
-            username=message.author.display_name,
-            artist_name=pending_data['artist_name'],
-            song_name=pending_data['song_name'],
-            link_or_file=file.url,
-            queue_line=QueueLine.FREE.value
-        )
-
-        embed = discord.Embed(title="✅ File Submission Added!", description=f"Your music file has been added to the **Free** line.", color=discord.Color.green())
-        embed.add_field(name="Artist", value=pending_data['artist_name'], inline=True)
-        embed.add_field(name="Song", value=pending_data['song_name'], inline=True)
-        embed.add_field(name="Submission ID", value=f"#{submission_id}", inline=False)
-
-        await message.add_reaction("✅")
-        await message.channel.send(embed=embed, delete_after=30)
-
-        if hasattr(self.bot, 'get_cog') and self.bot.get_cog('QueueCog'):
-            await self.bot.get_cog('QueueCog').update_queue_display(QueueLine.FREE.value)
 
     @app_commands.command(name="setupsubmissionbuttons", description="[ADMIN] Setup submission buttons in current channel")
     @is_admin()
