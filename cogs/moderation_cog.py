@@ -37,28 +37,44 @@ class ModerationCog(commands.Cog):
         if message.embeds and any("Music Submission Portal" in (e.title or "") for e in message.embeds):
             return
 
-        # --- Action: Delete message and send temporary guidance ---
+        # --- Action: Delete message and send DM guidance ---
         try:
             await message.delete()
         except (discord.NotFound, discord.Forbidden):
             # Message was already deleted or we lack permissions.
-            # If we can't delete, we likely can't send messages either, but we'll try.
             pass
 
-        # Create and send a temporary, self-destructing guidance message
+        # Create and send a guidance message via DM
         guidance_embed = discord.Embed(
-            title="🎵 Please Use Submission Commands",
-            description=f"{message.author.mention}, this channel is for commands only. "
-                        "Please use the buttons above or the `/submit` and `/submitfile` commands to add your music.",
-            color=discord.Color.orange()
+            title="🎵 How to Submit Your Music",
+            description=(
+                "Hello! I noticed you sent a message in the submissions channel. "
+                "To keep things organized, that channel only accepts submissions through our official bot commands.\n\n"
+                "**Please use one of these methods:**\n"
+                "1. Click the `Submit Link` or `Submit File` buttons in the channel.\n"
+                "2. Use the `/submit` command for links.\n"
+                "3. Use the `/submitfile` command for audio files."
+            ),
+            color=discord.Color.blue()
         )
-        guidance_embed.set_footer(text="This message will be deleted automatically.")
+        guidance_embed.set_footer(text="This helps us process every submission fairly. Thank you!")
 
         try:
-            await message.channel.send(embed=guidance_embed, delete_after=15)
+            await message.author.send(embed=guidance_embed)
         except discord.Forbidden:
-            # Bot lacks permission to send messages in this channel.
-            # Silently fail as we can't inform the user.
+            # User has DMs disabled, so we can't send the message.
+            # We can post a temporary message in the channel as a fallback.
+            fallback_message = (
+                f"{message.author.mention}, I tried to DM you submission instructions, but your DMs are closed. "
+                "Please use the buttons or `/submit` commands in this channel."
+            )
+            try:
+                await message.channel.send(fallback_message, delete_after=15)
+            except discord.Forbidden:
+                pass # Can't send messages in the channel either, so we fail silently.
+        except discord.HTTPException:
+            # Handle other potential HTTP errors.
+            # In this context, we'll just fail silently.
             pass
 
 async def setup(bot):

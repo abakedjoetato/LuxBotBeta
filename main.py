@@ -56,6 +56,7 @@ class MusicQueueBot(commands.Bot):
             await self.load_extension('cogs.submission_cog')
             await self.load_extension('cogs.queue_cog')
             await self.load_extension('cogs.admin_cog')
+            await self.load_extension('cogs.moderation_cog')
 
             logging.info("All cogs loaded successfully")
         except Exception as e:
