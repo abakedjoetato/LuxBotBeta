@@ -12,9 +12,11 @@ from enum import Enum
 
 class QueueLine(Enum):
     """Enum for queue line types with priority order"""
-    BACKTOBACK = "BackToBack"
-    DOUBLESKIP = "DoubleSkip"
-    SKIP = "Skip"
+    FIVESKIP = "5 Skip"
+    TENSKIP = "10 Skip"
+    FIFTEENSKIP = "15 Skip"
+    TWENTYSKIP = "20 Skip"
+    TWENTYFIVEPLUSSKIP = "25+ Skip"
     FREE = "Free"
     PENDING_SKIPS = "Pending Skips"
     CALLS_PLAYED = "Calls Played"
@@ -206,8 +208,14 @@ class Database:
 
     async def get_next_submission(self) -> Optional[Dict[str, Any]]:
         """Get the next submission following priority order, excluding Pending Skips."""
-        priority_order = [QueueLine.BACKTOBACK.value, QueueLine.DOUBLESKIP.value,
-                         QueueLine.SKIP.value, QueueLine.FREE.value]
+        priority_order = [
+            QueueLine.TWENTYFIVEPLUSSKIP.value,
+            QueueLine.TWENTYSKIP.value,
+            QueueLine.FIFTEENSKIP.value,
+            QueueLine.TENSKIP.value,
+            QueueLine.FIVESKIP.value,
+            QueueLine.FREE.value
+        ]
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
@@ -220,8 +228,14 @@ class Database:
 
     async def take_next_to_calls_played(self) -> Optional[Dict[str, Any]]:
         """Atomically move the next submission to Calls Played line and ensure commit."""
-        priority_order = [QueueLine.BACKTOBACK.value, QueueLine.DOUBLESKIP.value,
-                         QueueLine.SKIP.value, QueueLine.FREE.value]
+        priority_order = [
+            QueueLine.TWENTYFIVEPLUSSKIP.value,
+            QueueLine.TWENTYSKIP.value,
+            QueueLine.FIFTEENSKIP.value,
+            QueueLine.TENSKIP.value,
+            QueueLine.FIVESKIP.value,
+            QueueLine.FREE.value
+        ]
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
