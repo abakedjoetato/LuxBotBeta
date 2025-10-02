@@ -161,6 +161,74 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
         view.message = await interaction.original_response()
 
 
+class SubmissionDetailModal(discord.ui.Modal, title='Submit Your Music'):
+    """Modal to collect details for a file or link submission from a message."""
+
+    def __init__(self, bot, submission_url: str):
+        super().__init__()
+        self.bot = bot
+        self.submission_url = submission_url
+
+    artist_name = discord.ui.TextInput(
+        label='Artist Name',
+        placeholder='Enter the artist name...',
+        required=True,
+        max_length=100
+    )
+
+    song_name = discord.ui.TextInput(
+        label='Song Name',
+        placeholder='Enter the song title...',
+        required=True,
+        max_length=100
+    )
+
+    note = discord.ui.TextInput(
+        label='Note (Optional)',
+        placeholder='Anything to add for the host?',
+        required=False,
+        max_length=200
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        """Handle submission by creating a submission entry."""
+        submission_data = {
+            'artist_name': str(self.artist_name.value).strip(),
+            'song_name': str(self.song_name.value).strip(),
+            'link_or_file': self.submission_url,
+            'note': str(self.note.value).strip() if self.note.value else None
+        }
+
+        # Use the existing SkipConfirmationView to ask about the line
+        view = SkipConfirmationView(self.bot, submission_data)
+        await interaction.response.send_message("Is this a **Skip** submission?", view=view, ephemeral=True)
+        view.message = await interaction.original_response()
+
+class AddSubmissionDetailView(discord.ui.View):
+    """A view sent to a user who provides a file or link, prompting them to add details."""
+    def __init__(self, bot, submission_url: str, timeout=300):
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.submission_url = submission_url
+        self.message: Optional[discord.Message] = None
+
+    @discord.ui.button(label="Add Submission Details", style=discord.ButtonStyle.primary, emoji="✍️")
+    async def add_details_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Opens the modal to add submission details."""
+        modal = SubmissionDetailModal(self.bot, self.submission_url)
+        await interaction.response.send_modal(modal)
+
+        # Disable the button after it's clicked
+        self.clear_items()
+        if self.message:
+            await self.message.edit(content="✅ You have opened the submission form.", view=self)
+
+    async def on_timeout(self):
+        if self.message:
+            self.clear_items()
+            await self.message.edit(content="This submission prompt has timed out.", view=self)
+
+
 class SubmissionButtonView(discord.ui.View):
     """Persistent view with submission buttons"""
 

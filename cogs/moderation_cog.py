@@ -1,9 +1,10 @@
 """
 Moderation Cog - Handles automatic moderation of submission channels
 """
-
+import re
 import discord
 from discord.ext import commands
+from cogs.submission_cog import AddSubmissionDetailView
 
 class ModerationCog(commands.Cog):
     """Cog for submission channel moderation"""
@@ -20,7 +21,7 @@ class ModerationCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        """Handle non-command messages in the designated submission channel."""
+        """Handle messages in the designated submission channel for files, links, or invalid content."""
         # --- Basic checks ---
         if message.author.bot:
             return
@@ -37,44 +38,116 @@ class ModerationCog(commands.Cog):
         if message.embeds and any("Music Submission Portal" in (e.title or "") for e in message.embeds):
             return
 
-        # --- Action: Delete message and send DM guidance ---
+        # --- Handle File Uploads ---
+        if message.attachments:
+            attachment = message.attachments[0]
+            valid_extensions = ('.mp3', '.m4a', '.flac')
+
+            # WAV file check
+            if attachment.filename.lower().endswith('.wav'):
+                try:
+                    await message.delete()
+                except (discord.NotFound, discord.Forbidden): pass
+                await message.channel.send(
+                    f"{message.author.mention}, `.wav` files are not supported. Please convert to MP3, M4A, or FLAC.",
+                    delete_after=15
+                )
+                return
+
+            # Other valid audio file checks
+            if attachment.filename.lower().endswith(valid_extensions):
+                if attachment.size > 25 * 1024 * 1024:
+                    try:
+                        await message.delete()
+                    except (discord.NotFound, discord.Forbidden): pass
+                    await message.channel.send(
+                        f"{message.author.mention}, your file `{attachment.filename}` is too large (limit is 25MB).",
+                        delete_after=15
+                    )
+                    return
+
+                # It's a valid file, start the submission process
+                try:
+                    await message.delete()
+                except (discord.NotFound, discord.Forbidden): pass
+
+                view = AddSubmissionDetailView(self.bot, attachment.url)
+                embed = discord.Embed(title="🎵 Complete Your File Submission", color=discord.Color.purple(),
+                                      description="You've uploaded a file! Click the button below to add the artist and song details.")
+                embed.set_footer(text="This prompt will time out in 5 minutes.")
+
+                try:
+                    dm_message = await message.author.send(embed=embed, view=view)
+                    view.message = dm_message
+                except discord.Forbidden:
+                    fallback_embed = discord.Embed(title="🎵 Complete Your Submission", color=discord.Color.orange(),
+                                                   description=f"{message.author.mention}, I can't DM you! Click below to add details for your submission.")
+                    public_message = await message.channel.send(embed=fallback_embed, view=view)
+                    view.message = public_message
+                return
+
+        # --- Handle Links ---
+        url_match = re.search(r'https?://\S+', message.content)
+        if url_match and not message.attachments:
+            url = url_match.group(0)
+
+            # Check for forbidden links (Apple Music)
+            if 'music.apple.com' in url.lower() or 'itunes.apple.com' in url.lower():
+                try:
+                    await message.delete()
+                except (discord.NotFound, discord.Forbidden): pass
+                await message.channel.send(
+                    f"{message.author.mention}, Apple Music links are not supported. Please use another platform.",
+                    delete_after=15
+                )
+                return
+
+            # It's a valid link, start the submission process
+            try:
+                await message.delete()
+            except (discord.NotFound, discord.Forbidden): pass
+
+            view = AddSubmissionDetailView(self.bot, url)
+            embed = discord.Embed(title="🎵 Complete Your Link Submission", color=discord.Color.purple(),
+                                  description="You've posted a link! Click the button below to add the artist and song details.")
+            embed.set_footer(text="This prompt will time out in 5 minutes.")
+
+            try:
+                dm_message = await message.author.send(embed=embed, view=view)
+                view.message = dm_message
+            except discord.Forbidden:
+                fallback_embed = discord.Embed(title="🎵 Complete Your Submission", color=discord.Color.orange(),
+                                               description=f"{message.author.mention}, I can't DM you! Click below to add details for your submission.")
+                public_message = await message.channel.send(embed=fallback_embed, view=view)
+                view.message = public_message
+            return
+
+        # --- Action: Delete any other messages and send guidance ---
         try:
             await message.delete()
-        except (discord.NotFound, discord.Forbidden):
-            # Message was already deleted or we lack permissions.
-            pass
+        except (discord.NotFound, discord.Forbidden): pass
 
-        # Create and send a guidance message via DM
         guidance_embed = discord.Embed(
             title="🎵 How to Submit Your Music",
             description=(
-                "Hello! I noticed you sent a message in the submissions channel. "
-                "To keep things organized, that channel only accepts submissions through our official bot commands.\n\n"
-                "**Please use one of these methods:**\n"
-                "1. Click the `Submit Link` or `Submit File` buttons in the channel.\n"
-                "2. Use the `/submit` command for links.\n"
-                "3. Use the `/submitfile` command for audio files."
+                "Hello! To keep this channel organized, please submit by either **pasting a link** or **uploading an audio file**.\n\n"
+                "I will then guide you through the rest of the submission process privately."
             ),
             color=discord.Color.blue()
         )
-        guidance_embed.set_footer(text="This helps us process every submission fairly. Thank you!")
+        guidance_embed.set_footer(text="You can also use the /submit or /submitfile commands.")
 
         try:
             await message.author.send(embed=guidance_embed)
         except discord.Forbidden:
-            # User has DMs disabled, so we can't send the message.
-            # We can post a temporary message in the channel as a fallback.
             fallback_message = (
-                f"{message.author.mention}, I tried to DM you submission instructions, but your DMs are closed. "
-                "Please use the buttons or `/submit` commands in this channel."
+                f"{message.author.mention}, please submit by pasting a link or uploading an audio file. "
+                "I tried to DM you more info, but your DMs are closed."
             )
             try:
-                await message.channel.send(fallback_message, delete_after=15)
-            except discord.Forbidden:
-                pass # Can't send messages in the channel either, so we fail silently.
+                await message.channel.send(fallback_message, delete_after=20)
+            except discord.Forbidden: pass
         except discord.HTTPException:
-            # Handle other potential HTTP errors.
-            # In this context, we'll just fail silently.
             pass
 
 async def setup(bot):
