@@ -220,8 +220,9 @@ class AdminCog(commands.Cog):
             if now_playing_channel_id:
                 channel = self.bot.get_channel(now_playing_channel_id)
                 if channel:
-                    user = self.bot.get_user(next_sub['user_id']) or f"<@{next_sub['user_id']}>"
-                    announcement = f"🎶 Now Playing: {next_sub['artist_name']} – {next_sub['song_name']} (submitted by {user.mention})"
+                    user = self.bot.get_user(next_sub['user_id'])
+                    mention = user.mention if user else f"<@{next_sub['user_id']}>"
+                    announcement = f"🎶 Now Playing: {next_sub['artist_name']} – {next_sub['song_name']} (submitted by {mention})"
                     await channel.send(announcement)
 
             embed = discord.Embed(
