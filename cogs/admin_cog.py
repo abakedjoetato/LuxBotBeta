@@ -53,6 +53,9 @@ class NextActionView(discord.ui.View):
             else:
                 embed.add_field(name="File", value=submission['link_or_file'], inline=False)
 
+            if submission.get('note'):
+                embed.add_field(name="Note", value=submission['note'], inline=False)
+
             embed.set_footer(text=f"Originally submitted on {submission['submission_time']} | Luxurious Radio By Emerald Beats")
             embed.timestamp = discord.utils.utcnow()
 
@@ -241,6 +244,9 @@ class AdminCog(commands.Cog):
                 embed.add_field(name="Link", value=f"[Click Here]({next_sub['link_or_file']})", inline=False)
             else:
                 embed.add_field(name="File", value=next_sub['link_or_file'], inline=False)
+
+            if next_sub.get('note'):
+                embed.add_field(name="Note", value=next_sub['note'], inline=False)
             
             embed.set_footer(text=f"Submitted on {next_sub['submission_time']} | Luxurious Radio By Emerald Beats")
             
@@ -374,6 +380,9 @@ class AdminCog(commands.Cog):
                 embed.add_field(name="Link", value=f"[Click Here]({submission['link_or_file']})", inline=False)
             else:
                 embed.add_field(name="File", value=submission['link_or_file'], inline=False)
+
+            if submission.get('note'):
+                embed.add_field(name="Note", value=submission['note'], inline=False)
             
             embed.set_footer(text=f"Originally submitted on {submission['submission_time']} | Luxurious Radio By Emerald Beats")
             embed.timestamp = discord.utils.utcnow()
