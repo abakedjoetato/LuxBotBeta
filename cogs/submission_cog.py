@@ -161,64 +161,13 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
         view.message = await interaction.original_response()
 
 
-class InitialSubmissionTypeView(discord.ui.View):
-    """Asks the user if the submission is a skip or for the free line."""
-    def __init__(self, bot, submission_url: str, timeout=180):
-        super().__init__(timeout=timeout)
-        self.bot = bot
-        self.submission_url = submission_url
-        self.message: Optional[discord.Message] = None
+class SubmissionDetailModal(discord.ui.Modal, title='Submit Your Music'):
+    """Modal to collect details for a file or link submission from a message."""
 
-    @discord.ui.button(label="Yes, it's a Skip", style=discord.ButtonStyle.success)
-    async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Opens the finalize modal for a skip submission."""
-        modal = SubmissionFinalizeModal(self.bot, self.submission_url, QueueLine.PENDING_SKIPS.value)
-        await interaction.response.send_modal(modal)
-
-        # Disable the view after interaction
-        self.clear_items()
-        if self.message:
-            await self.message.edit(content="✅ You have opened the submission form.", view=self)
-
-    @discord.ui.button(label="No, it's for the Free line", style=discord.ButtonStyle.danger)
-    async def no_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Checks if the free line is open and then opens the finalize modal."""
-        is_open = await self.bot.db.is_free_line_open()
-        if not is_open:
-            self.clear_items()
-            await interaction.response.edit_message(content="❌ Submissions to the Free line are currently closed.", view=self)
-            return
-
-        # Check if user already has a submission in the Free line
-        existing_count = await self.bot.db.get_user_submission_count_in_line(interaction.user.id, QueueLine.FREE.value)
-        if existing_count > 0:
-            self.clear_items()
-            await interaction.response.edit_message(content="❌ You already have a submission in the Free line.", view=self)
-            return
-
-        modal = SubmissionFinalizeModal(self.bot, self.submission_url, QueueLine.FREE.value)
-        await interaction.response.send_modal(modal)
-
-        # Disable the view after interaction
-        self.clear_items()
-        if self.message:
-            await self.message.edit(content="✅ You have opened the submission form.", view=self)
-
-    async def on_timeout(self):
-        if self.message:
-            self.clear_items()
-            await self.message.edit(content="This submission prompt has timed out.", view=self)
-
-
-class SubmissionFinalizeModal(discord.ui.Modal, title="Finalize Your Submission"):
-    """Modal to collect all submission details."""
-
-    def __init__(self, bot, submission_url: str, queue_line: QueueLine):
+    def __init__(self, bot, submission_url: str):
         super().__init__()
         self.bot = bot
         self.submission_url = submission_url
-        self.queue_line = queue_line
-        self.line_name = "Pending Skips" if self.queue_line == QueueLine.PENDING_SKIPS.value else "Free"
 
     artist_name = discord.ui.TextInput(
         label='Artist Name',
@@ -234,10 +183,71 @@ class SubmissionFinalizeModal(discord.ui.Modal, title="Finalize Your Submission"
         max_length=100
     )
 
-    tiktok_name = discord.ui.TextInput(
-        label='TikTok Name (Optional)',
-        placeholder='Enter your TikTok username...',
+    note = discord.ui.TextInput(
+        label='Note (Optional)',
+        placeholder='Anything to add for the host?',
         required=False,
+        max_length=200
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        """Handle submission by creating a submission entry."""
+        submission_data = {
+            'artist_name': str(self.artist_name.value).strip(),
+            'song_name': str(self.song_name.value).strip(),
+            'link_or_file': self.submission_url,
+            'note': str(self.note.value).strip() if self.note.value else None
+        }
+
+        # Use the existing SkipConfirmationView to ask about the line
+        view = SkipConfirmationView(self.bot, submission_data)
+        await interaction.response.send_message("Is this a **Skip** submission?", view=view, ephemeral=True)
+        view.message = await interaction.original_response()
+
+class AddSubmissionDetailView(discord.ui.View):
+    """A view sent to a user who provides a file or link, prompting them to add details."""
+    def __init__(self, bot, submission_url: str, timeout=300):
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.submission_url = submission_url
+        self.message: Optional[discord.Message] = None
+
+    @discord.ui.button(label="Add Submission Details", style=discord.ButtonStyle.primary, emoji="✍️")
+    async def add_details_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Opens the modal to add submission details."""
+        modal = SubmissionDetailModal(self.bot, self.submission_url)
+        await interaction.response.send_modal(modal)
+
+        # Disable the button after it's clicked
+        self.clear_items()
+        if self.message:
+            await self.message.edit(content="✅ You have opened the submission form.", view=self)
+
+    async def on_timeout(self):
+        if self.message:
+            self.clear_items()
+            await self.message.edit(content="This submission prompt has timed out.", view=self)
+
+
+class SkipOnlySubmissionModal(discord.ui.Modal, title='Submit to Skip Line'):
+    """Modal to collect details for a submission to the skip line."""
+
+    def __init__(self, bot, submission_url: str):
+        super().__init__()
+        self.bot = bot
+        self.submission_url = submission_url
+
+    artist_name = discord.ui.TextInput(
+        label='Artist Name',
+        placeholder='Enter the artist name...',
+        required=True,
+        max_length=100
+    )
+
+    song_name = discord.ui.TextInput(
+        label='Song Name',
+        placeholder='Enter the song title...',
+        required=True,
         max_length=100
     )
 
@@ -249,39 +259,76 @@ class SubmissionFinalizeModal(discord.ui.Modal, title="Finalize Your Submission"
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        """Handle submission by adding all data to the database."""
+        """Handle submission by adding directly to the skip line."""
+        submission_data = {
+            'artist_name': str(self.artist_name.value).strip(),
+            'song_name': str(self.song_name.value).strip(),
+            'link_or_file': self.submission_url,
+            'note': str(self.note.value).strip() if self.note.value else None
+        }
+
         try:
             public_id = await self.bot.db.add_submission(
                 user_id=interaction.user.id,
                 username=interaction.user.display_name,
-                artist_name=str(self.artist_name.value).strip(),
-                song_name=str(self.song_name.value).strip(),
-                link_or_file=self.submission_url,
-                queue_line=self.queue_line,
-                tiktok_name=str(self.tiktok_name.value).strip() if self.tiktok_name.value else None,
-                note=str(self.note.value).strip() if self.note.value else None
+                artist_name=submission_data['artist_name'],
+                song_name=submission_data['song_name'],
+                link_or_file=submission_data['link_or_file'],
+                queue_line=QueueLine.PENDING_SKIPS.value,
+                note=submission_data.get('note')
             )
 
             embed = discord.Embed(
                 title="✅ Submission Added!",
-                description=f"Your music has been added to the **{self.line_name}** line.",
+                description=f"Your music has been added to the **Pending Skips** line.",
                 color=discord.Color.green()
             )
-            embed.add_field(name="Artist", value=str(self.artist_name.value).strip(), inline=True)
-            embed.add_field(name="Song", value=str(self.song_name.value).strip(), inline=True)
-            if self.tiktok_name.value:
-                embed.add_field(name="TikTok", value=str(self.tiktok_name.value).strip(), inline=True)
+            embed.add_field(name="Artist", value=submission_data['artist_name'], inline=True)
+            embed.add_field(name="Song", value=submission_data['song_name'], inline=True)
             embed.add_field(name="Submission ID", value=f"#{public_id}", inline=False)
             embed.set_footer(text="Use /myqueue to see your submissions")
 
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
-            # Update queue display
             if hasattr(self.bot, 'get_cog') and self.bot.get_cog('QueueCog'):
-                await self.bot.get_cog('QueueCog').update_queue_display(self.queue_line)
+                await self.bot.get_cog('QueueCog').update_queue_display(QueueLine.PENDING_SKIPS.value)
 
         except Exception as e:
-            await interaction.response.send_message(f"❌ An error occurred: {str(e)}", ephemeral=True)
+            await interaction.response.send_message(
+                f"❌ An error occurred: {str(e)}",
+                ephemeral=True
+            )
+
+
+class FreeLineClosedConfirmationView(discord.ui.View):
+    """A view to ask a user if they want to submit to the skip line when the free line is closed."""
+    def __init__(self, bot, submission_url: str, timeout=180):
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.submission_url = submission_url
+        self.message: Optional[discord.Message] = None
+
+    @discord.ui.button(label="Yes, submit as a Skip", style=discord.ButtonStyle.success)
+    async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Opens the modal to add skip submission details."""
+        modal = SkipOnlySubmissionModal(self.bot, self.submission_url)
+        await interaction.response.send_modal(modal)
+
+        # Disable the view
+        self.clear_items()
+        if self.message:
+            await self.message.edit(content="✅ You have opened the skip submission form.", view=self)
+
+    @discord.ui.button(label="No, cancel", style=discord.ButtonStyle.danger)
+    async def no_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Cancels the submission."""
+        self.clear_items()
+        await interaction.response.edit_message(content="Submission cancelled.", view=self)
+
+    async def on_timeout(self):
+        if self.message:
+            self.clear_items()
+            await self.message.edit(content="This submission prompt has timed out.", view=self)
 
 
 class SubmissionButtonView(discord.ui.View):
