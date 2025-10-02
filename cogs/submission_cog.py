@@ -56,7 +56,8 @@ class SkipConfirmationView(discord.ui.View):
                 artist_name=self.submission_data['artist_name'],
                 song_name=self.submission_data['song_name'],
                 link_or_file=self.submission_data['link_or_file'],
-                queue_line=queue_line
+                queue_line=queue_line,
+                note=self.submission_data.get('note')
             )
 
             embed = discord.Embed(
@@ -123,6 +124,13 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
         max_length=500
     )
 
+    note = discord.ui.TextInput(
+        label='Note (Optional)',
+        placeholder='Anything to add for the host?',
+        required=False,
+        max_length=200
+    )
+
     async def on_submit(self, interaction: discord.Interaction):
         """Handle form submission by asking if it's a skip."""
         link_value = str(self.link_or_file.value).strip()
@@ -144,7 +152,8 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
         submission_data = {
             'artist_name': str(self.artist_name.value).strip(),
             'song_name': str(self.song_name.value).strip(),
-            'link_or_file': link_value
+            'link_or_file': link_value,
+            'note': str(self.note.value).strip() if self.note.value else None
         }
 
         view = SkipConfirmationView(self.bot, submission_data)
@@ -201,9 +210,10 @@ class SubmissionCog(commands.Cog):
     @app_commands.describe(
         file="Upload your audio file (MP3, M4A, FLAC)",
         artist_name="Name of the artist",
-        song_name="Title of the song"
+        song_name="Title of the song",
+        note="Optional note for the host"
     )
-    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str):
+    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str, note: Optional[str] = None):
         """Submit an MP3 file for review"""
         valid_extensions = ('.mp3', '.m4a', '.flac')
         if file.filename.lower().endswith('.wav'):
@@ -229,7 +239,8 @@ class SubmissionCog(commands.Cog):
         submission_data = {
             'artist_name': artist_name.strip(),
             'song_name': song_name.strip(),
-            'link_or_file': file.url
+            'link_or_file': file.url,
+            'note': note.strip() if note else None
         }
 
         view = SkipConfirmationView(self.bot, submission_data)

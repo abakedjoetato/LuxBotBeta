@@ -40,7 +40,8 @@ class Database:
                     queue_line TEXT NOT NULL,
                     submission_time DATETIME DEFAULT CURRENT_TIMESTAMP,
                     position INTEGER DEFAULT 0,
-                    played_time DATETIME
+                    played_time DATETIME,
+                    note TEXT
                 )
             """)
 
@@ -52,6 +53,8 @@ class Database:
             if 'public_id' not in columns:
                 await db.execute("ALTER TABLE submissions ADD COLUMN public_id TEXT")
                 await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_public_id ON submissions (public_id)")
+            if 'note' not in columns:
+                await db.execute("ALTER TABLE submissions ADD COLUMN note TEXT")
 
             # Populate public_id for existing rows
             async with db.execute("SELECT id FROM submissions WHERE public_id IS NULL") as cursor:
@@ -98,14 +101,15 @@ class Database:
                     return new_id
 
     async def add_submission(self, user_id: int, username: str, artist_name: str,
-                           song_name: str, link_or_file: str, queue_line: str) -> str:
+                           song_name: str, link_or_file: str, queue_line: str,
+                           note: Optional[str] = None) -> str:
         """Add a new submission to the database and return its public ID."""
         async with aiosqlite.connect(self.db_path) as db:
             public_id = await self._generate_unique_submission_id(db)
             await db.execute("""
-                INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line))
+                INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note))
 
             await db.commit()
             return public_id
@@ -333,6 +337,24 @@ class Database:
             async with db.execute("SELECT * FROM submissions WHERE public_id = ?", (public_id,)) as cursor:
                 row = await cursor.fetchone()
                 return dict(row) if row else None
+
+    async def set_bookmark_channel(self, channel_id: int):
+        """Set the bookmark channel."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bookmark_channel_id', ?)", (str(channel_id),))
+            await db.commit()
+
+    async def get_bookmark_channel(self) -> Optional[int]:
+        """Get the bookmark channel ID"""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT value FROM bot_settings WHERE key = 'bookmark_channel_id'") as cursor:
+                row = await cursor.fetchone()
+                if row and row[0]:
+                    try:
+                        return int(row[0])
+                    except (ValueError, TypeError):
+                        return None
+        return None
 
     async def close(self):
         """Close database connection"""
