@@ -9,6 +9,9 @@ from typing import List, Dict, Any, Optional
 from database import QueueLine
 import datetime
 
+# A unique identifier for our queue view messages
+QUEUE_VIEW_EMBED_FOOTER_ID = "Luxurious_Radio_Queue_View_v1"
+
 class PaginatedQueueView(discord.ui.View):
     """Discord View for paginated queue display with navigation buttons"""
     
@@ -82,16 +85,19 @@ class PaginatedQueueView(discord.ui.View):
             embed.description = "This interactive view has expired. Please use the command again to get a new one."
             footer_text = "View has expired"
 
-        embed.set_footer(text=f"{footer_text} | Luxurious Radio By Emerald Beats")
+        # Add our unique identifier to the footer text
+        embed.set_footer(text=f"{footer_text} | {QUEUE_VIEW_EMBED_FOOTER_ID} | Luxurious Radio By Emerald Beats")
         embed.timestamp = discord.utils.utcnow()
         return embed
     
     def _get_line_color(self) -> discord.Color:
         """Get color for queue line embed"""
         colors = {
-            QueueLine.BACKTOBACK.value: discord.Color.red(),
-            QueueLine.DOUBLESKIP.value: discord.Color.orange(),
-            QueueLine.SKIP.value: discord.Color.yellow(),
+            QueueLine.TWENTYFIVEPLUSSKIP.value: discord.Color.red(),
+            QueueLine.TWENTYSKIP.value: discord.Color.dark_orange(),
+            QueueLine.FIFTEENSKIP.value: discord.Color.orange(),
+            QueueLine.TENSKIP.value: discord.Color.gold(),
+            QueueLine.FIVESKIP.value: discord.Color.yellow(),
             QueueLine.FREE.value: discord.Color.green(),
             QueueLine.CALLS_PLAYED.value: discord.Color.purple()
         }
@@ -185,7 +191,91 @@ class QueueViewCog(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
+
+    async def initialize_all_views(self):
+        """
+        Scans all configured queue channels, cleans up old views,
+        and ensures a single, active view is present and correctly pinned.
+        This should be called on bot startup.
+        """
+        print("Initializing all queue views...")
+        for queue_line in QueueLine:
+            # All queues, including Pending Skips, will now have a persistent view.
+            channel_settings = await self.bot.db.get_channel_for_line(queue_line.value)
+            if not (channel_settings and channel_settings['channel_id']):
+                continue
+
+            channel = self.bot.get_channel(channel_settings['channel_id'])
+            if not channel:
+                print(f"Channel {channel_settings['channel_id']} for {queue_line.value} not found.")
+                continue
+
+            # Health check the channel
+            await self._health_check_channel(channel, queue_line.value)
     
+    async def _health_check_channel(self, channel: discord.TextChannel, queue_line: str):
+        """Ensures a channel has one valid, pinned queue view message."""
+        try:
+            pinned_messages = await channel.pins()
+        except discord.Forbidden:
+            print(f"Cannot read pinned messages in {channel.name}. Skipping health check.")
+            return
+        except discord.HTTPException as e:
+            print(f"Failed to fetch pins for {channel.name}: {e}")
+            return
+
+        valid_queue_message = None
+
+        # Find our queue message among the pins
+        for msg in pinned_messages:
+            if msg.author.id == self.bot.user.id and msg.embeds:
+                footer = msg.embeds[0].footer.text or ""
+                if QUEUE_VIEW_EMBED_FOOTER_ID in footer:
+                    if valid_queue_message is None:
+                        valid_queue_message = msg # Found our first valid message
+                    else:
+                        # Found a duplicate, unpin it
+                        print(f"Found duplicate queue view in {channel.name}. Unpinning older one.")
+                        await msg.unpin(reason="Cleaning up duplicate queue view.")
+
+        # Now, ensure the one we found is the one in the DB
+        if valid_queue_message:
+            await self.bot.db.update_pinned_message(queue_line, valid_queue_message.id)
+
+        # Determine if this channel should be aggressively cleaned.
+        now_playing_channel_id = self.bot.settings_cache.get('now_playing_channel_id')
+        bookmark_channel_id = self.bot.settings_cache.get('bookmark_channel_id')
+
+        # List of channel IDs that should never be purged.
+        channel_cleanup_exempt_ids = [now_playing_channel_id, bookmark_channel_id]
+
+        # List of queue types that should never be purged.
+        queue_type_cleanup_exempt = [QueueLine.CALLS_PLAYED.value]
+
+        is_exempt = (
+            channel.id in channel_cleanup_exempt_ids or
+            queue_line in queue_type_cleanup_exempt
+        )
+
+        # Aggressive Cleanup: For non-exempt queues, remove all other messages.
+        if not is_exempt:
+            try:
+                # This check ensures we don't delete the message we want to keep.
+                def is_not_the_queue_view(m):
+                    return m.id != (valid_queue_message.id if valid_queue_message else None)
+
+                purged = await channel.purge(limit=None, check=is_not_the_queue_view, bulk=True)
+                if len(purged) > 0:
+                    print(f"Aggressively purged {len(purged)} message(s) from channel: {channel.name}")
+            except discord.Forbidden:
+                print(f"Lacking permissions to purge messages in {channel.name}.")
+            except discord.HTTPException as e:
+                print(f"HTTP error while purging {channel.name}: {e}")
+
+        # Finally, create or update the view to ensure it's fresh and has working buttons.
+        await self.create_or_update_queue_view(queue_line)
+
+
     async def create_or_update_queue_view(self, queue_line: str):
         """Create or update a paginated queue view in its designated channel."""
         channel_settings = await self.bot.db.get_channel_for_line(queue_line)

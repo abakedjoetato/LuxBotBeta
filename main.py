@@ -11,6 +11,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from database import Database
+from cogs.queue_view import PaginatedQueueView
 
 # Load environment variables
 load_dotenv()
@@ -29,9 +30,11 @@ class MusicQueueBot(commands.Bot):
     """Main Discord bot class with music queue functionality"""
 
     def __init__(self):
-        # Define intents (minimal for slash commands)
+        # Define intents
         intents = discord.Intents.default()
         intents.guilds = True
+        intents.messages = True  # Required for reading channel history (pins)
+        intents.message_content = True # Required for reading embeds of old messages
 
         super().__init__(
             command_prefix='!',  # Fallback prefix, we're using slash commands
@@ -41,6 +44,8 @@ class MusicQueueBot(commands.Bot):
 
         # Initialize database
         self.db = Database()
+        self.initial_startup = True
+        self.settings_cache = {}
 
     async def setup_hook(self):
         """Setup hook called when bot is starting"""
@@ -89,6 +94,22 @@ class MusicQueueBot(commands.Bot):
             name="music submissions | /help"
         )
         await self.change_presence(activity=activity)
+
+        # One-time startup tasks
+        if self.initial_startup:
+            # Load all bot settings into the cache
+            self.settings_cache = await self.db.get_all_bot_settings()
+            logging.info(f"Loaded bot settings cache: {self.settings_cache}")
+
+            # Register persistent views
+            self.add_view(PaginatedQueueView(self, queue_line="dummy")) # Pass dummy args
+
+            # Initialize all queue displays
+            queue_view_cog = self.get_cog('QueueViewCog')
+            if queue_view_cog:
+                await queue_view_cog.initialize_all_views()
+
+            self.initial_startup = False
 
     async def on_command_error(self, ctx, error):
         """Global error handler"""

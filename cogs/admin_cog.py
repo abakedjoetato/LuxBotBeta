@@ -20,7 +20,7 @@ class NextActionView(discord.ui.View):
         try:
             await interaction.response.defer(ephemeral=True)
 
-            bookmark_channel_id = await self.bot.db.get_bookmark_channel()
+            bookmark_channel_id = self.bot.settings_cache.get('bookmark_channel_id')
             if not bookmark_channel_id:
                 await interaction.followup.send("❌ No bookmark channel has been set. Use `/setbookmarkchannel` first.", ephemeral=True)
                 return
@@ -92,7 +92,7 @@ class AdminCog(commands.Cog):
         channel="The text channel to use for this line"
     )
     @app_commands.choices(line=[
-        app_commands.Choice(name=ql.name.replace("_", " ").title(), value=ql.value) for ql in QueueLine
+        app_commands.Choice(name=ql.value, value=ql.value) for ql in QueueLine
     ])
     @is_admin()
     async def set_line(self, interaction: discord.Interaction, line: str, channel: discord.TextChannel):
@@ -120,7 +120,7 @@ class AdminCog(commands.Cog):
         target_line="The target queue line"
     )
     @app_commands.choices(target_line=[
-        app_commands.Choice(name=ql.name.replace("_", " ").title(), value=ql.value) for ql in QueueLine if ql != QueueLine.CALLS_PLAYED
+        app_commands.Choice(name=ql.value, value=ql.value) for ql in QueueLine if ql != QueueLine.CALLS_PLAYED
     ])
     @is_admin()
     async def move_submission(self, interaction: discord.Interaction, submission_id: str, target_line: str):
@@ -219,7 +219,7 @@ class AdminCog(commands.Cog):
                 return
             
             # Announce to #now-playing channel if set
-            now_playing_channel_id = await self.bot.db.get_now_playing_channel()
+            now_playing_channel_id = self.bot.settings_cache.get('now_playing_channel_id')
             if now_playing_channel_id:
                 channel = self.bot.get_channel(now_playing_channel_id)
                 if channel:
@@ -316,6 +316,7 @@ class AdminCog(commands.Cog):
         """Set the channel for bookmarked submissions"""
         try:
             await self.bot.db.set_bookmark_channel(channel.id)
+            self.bot.settings_cache['bookmark_channel_id'] = channel.id
             embed = discord.Embed(
                 title="✅ Bookmark Channel Set",
                 description=f"Bookmark channel is now set to {channel.mention}",
@@ -332,6 +333,7 @@ class AdminCog(commands.Cog):
         """Set the channel for 'Now Playing' announcements"""
         try:
             await self.bot.db.set_now_playing_channel(channel.id)
+            self.bot.settings_cache['now_playing_channel_id'] = channel.id
             embed = discord.Embed(
                 title="✅ 'Now Playing' Channel Set",
                 description=f"'Now Playing' announcements will be sent to {channel.mention}",
@@ -348,7 +350,7 @@ class AdminCog(commands.Cog):
         """Bookmark a submission to the designated bookmark channel"""
         public_id = submission_id.strip('#')
         try:
-            bookmark_channel_id = await self.bot.db.get_bookmark_channel()
+            bookmark_channel_id = self.bot.settings_cache.get('bookmark_channel_id')
             if not bookmark_channel_id:
                 await interaction.response.send_message("❌ No bookmark channel has been set. Use `/setbookmarkchannel` first.", ephemeral=True)
                 return

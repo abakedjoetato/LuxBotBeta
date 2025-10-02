@@ -98,9 +98,11 @@ class QueueCog(commands.Cog):
     def _get_line_color(self, queue_line: str) -> discord.Color:
         """Get color for queue line embed"""
         colors = {
-            QueueLine.BACKTOBACK.value: discord.Color.red(),
-            QueueLine.DOUBLESKIP.value: discord.Color.orange(),
-            QueueLine.SKIP.value: discord.Color.yellow(),
+            QueueLine.TWENTYFIVEPLUSSKIP.value: discord.Color.red(),
+            QueueLine.TWENTYSKIP.value: discord.Color.dark_orange(),
+            QueueLine.FIFTEENSKIP.value: discord.Color.orange(),
+            QueueLine.TENSKIP.value: discord.Color.gold(),
+            QueueLine.FIVESKIP.value: discord.Color.yellow(),
             QueueLine.FREE.value: discord.Color.green(),
             QueueLine.CALLS_PLAYED.value: discord.Color.purple()
         }
@@ -131,9 +133,11 @@ class QueueCog(commands.Cog):
         embed.add_field(
             name="🎯 Queue Lines (Priority Order)",
             value=(
-                "**BackToBack** - Highest priority\n"
-                "**DoubleSkip** - High priority\n"
-                "**Skip** - Medium priority\n"
+                "**25+ Skip** - Highest priority\n"
+                "**20 Skip** - Very high priority\n"
+                "**15 Skip** - High priority\n"
+                "**10 Skip** - Medium-high priority\n"
+                "**5 Skip** - Medium priority\n"
                 "**Free** - Standard submissions (1 per user)\n"
                 "**Calls Played** - Archive of reviewed tracks"
             ),
