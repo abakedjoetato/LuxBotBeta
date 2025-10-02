@@ -58,7 +58,8 @@ class ModerationCog(commands.Cog):
         # --- Handle File Uploads ---
         if message.attachments:
             attachment = message.attachments[0]
-            content_type = attachment.content_type or ""
+            content_type = attachment.content_type or "None"
+            await message.channel.send(f"DEBUG: File detected. `content_type`: `{content_type}`", delete_after=10)
 
             # Reject WAV files explicitly
             if content_type in ('audio/wav', 'audio/x-wav'):
@@ -95,6 +96,7 @@ class ModerationCog(commands.Cog):
         url_match = re.search(r'https?://\S+', message.content)
         if url_match and not message.attachments:
             url = url_match.group(0)
+            await message.channel.send(f"DEBUG: Link detected. URL: `{url}`", delete_after=10)
 
             # Check for forbidden links (Apple Music)
             if 'music.apple.com' in url.lower() or 'itunes.apple.com' in url.lower():
