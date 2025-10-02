@@ -4,7 +4,7 @@ Moderation Cog - Handles automatic moderation of submission channels
 import re
 import discord
 from discord.ext import commands
-from cogs.submission_cog import AddSubmissionDetailView, FreeLineClosedConfirmationView
+from cogs.submission_cog import InitialSubmissionTypeView
 
 class ModerationCog(commands.Cog):
     """Cog for submission channel moderation"""
@@ -12,38 +12,26 @@ class ModerationCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
     
-    async def _start_submission_process(self, message: discord.Message, submission_url: str, submission_type: str):
-        """Checks if the free line is open and sends the appropriate view to the user."""
-        is_open = await self.bot.db.is_free_line_open()
-
-        if is_open:
-            view = AddSubmissionDetailView(self.bot, submission_url)
-            embed = discord.Embed(
-                title=f"🎵 Complete Your {submission_type} Submission",
-                description=f"You've provided a {submission_type.lower()}! Click the button below to add the artist and song details.",
-                color=discord.Color.purple()
-            )
-            embed.set_footer(text="This prompt will time out in 5 minutes.")
-        else:
-            view = FreeLineClosedConfirmationView(self.bot, submission_url)
-            embed = discord.Embed(
-                title="⚠️ Free Submissions Closed",
-                description=(
-                    "Submissions to the **Free line** are currently closed. "
-                    "However, you can still submit to the **Skip line**.\n\n"
-                    "Would you like to submit your music as a Skip?"
-                ),
-                color=discord.Color.orange()
-            )
-            embed.set_footer(text="This prompt will time out in 3 minutes.")
+    async def _start_submission_process(self, message: discord.Message, submission_url: str):
+        """Starts the submission process by asking the user to choose a submission type."""
+        view = InitialSubmissionTypeView(self.bot, submission_url)
+        embed = discord.Embed(
+            title="🎵 New Submission",
+            description="Is this submission for the **Skip** line or the **Free** line?",
+            color=discord.Color.purple()
+        )
+        embed.set_footer(text="Please choose an option below.")
 
         try:
             dm_message = await message.author.send(embed=embed, view=view)
             view.message = dm_message
         except discord.Forbidden:
             fallback_embed = discord.Embed(
-                title="🎵 Complete Your Submission",
-                description=f"{message.author.mention}, I can't DM you! Click below to continue your submission.",
+                title="🎵 New Submission",
+                description=(
+                    f"{message.author.mention}, I couldn't DM you. Please choose a submission type below.\n\n"
+                    "Is this submission for the **Skip** line or the **Free** line?"
+                ),
                 color=discord.Color.orange()
             )
             public_message = await message.channel.send(embed=fallback_embed, view=view)
@@ -70,12 +58,10 @@ class ModerationCog(commands.Cog):
         # --- Handle File Uploads ---
         if message.attachments:
             attachment = message.attachments[0]
+            content_type = attachment.content_type or ""
 
-            # --- Use content_type for reliable file detection ---
-            valid_content_types = ('audio/mpeg', 'audio/mp4', 'audio/flac')
-
-            # WAV file check
-            if attachment.content_type == 'audio/wav':
+            # Reject WAV files explicitly
+            if content_type in ('audio/wav', 'audio/x-wav'):
                 try:
                     await message.delete()
                 except (discord.NotFound, discord.Forbidden): pass
@@ -85,8 +71,8 @@ class ModerationCog(commands.Cog):
                 )
                 return
 
-            # Check for other valid audio file types
-            if attachment.content_type in valid_content_types:
+            # Process any other audio type
+            if content_type.startswith('audio/'):
                 if attachment.size > 25 * 1024 * 1024:
                     try:
                         await message.delete()
@@ -97,12 +83,12 @@ class ModerationCog(commands.Cog):
                     )
                     return
 
-                # It's a valid file, start the submission process
+                # It's a valid audio file, start the submission process
                 try:
                     await message.delete()
                 except (discord.NotFound, discord.Forbidden): pass
 
-                await self._start_submission_process(message, attachment.url, "File")
+                await self._start_submission_process(message, attachment.url)
                 return
 
         # --- Handle Links ---
@@ -126,7 +112,7 @@ class ModerationCog(commands.Cog):
                 await message.delete()
             except (discord.NotFound, discord.Forbidden): pass
 
-            await self._start_submission_process(message, url, "Link")
+            await self._start_submission_process(message, url)
             return
 
         # --- Action: Delete any other messages and send guidance ---
