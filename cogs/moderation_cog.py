@@ -4,7 +4,7 @@ Moderation Cog - Handles automatic moderation of submission channels
 import re
 import discord
 from discord.ext import commands
-from cogs.submission_cog import AddSubmissionDetailView
+from cogs.submission_cog import AddSubmissionDetailView, FreeLineClosedConfirmationView
 
 class ModerationCog(commands.Cog):
     """Cog for submission channel moderation"""
@@ -18,6 +18,45 @@ class ModerationCog(commands.Cog):
             return False
         # Simplified check for guild permissions
         return member.guild_permissions.manage_messages or member.guild_permissions.manage_guild
+
+    async def _start_submission_process(self, message: discord.Message, submission_url: str, submission_type: str):
+        """Checks if the free line is open and sends the appropriate view to the user."""
+        is_open = await self.bot.db.is_free_line_open()
+
+        if is_open:
+            view = AddSubmissionDetailView(self.bot, submission_url)
+            embed = discord.Embed(
+                title=f"🎵 Complete Your {submission_type} Submission",
+                description=f"You've provided a {submission_type.lower()}! Click the button below to add the artist and song details.",
+                color=discord.Color.purple()
+            )
+            embed.set_footer(text="This prompt will time out in 5 minutes.")
+        else:
+            view = FreeLineClosedConfirmationView(self.bot, submission_url)
+            embed = discord.Embed(
+                title="⚠️ Free Submissions Closed",
+                description=(
+                    "Submissions to the **Free line** are currently closed. "
+                    "However, you can still submit to the **Skip line**.\n\n"
+                    "Would you like to submit your music as a Skip?"
+                ),
+                color=discord.Color.orange()
+            )
+            embed.set_footer(text="This prompt will time out in 3 minutes.")
+
+        try:
+            dm_message = await message.author.send(embed=embed, view=view)
+            view.message = dm_message
+        except discord.Forbidden:
+            fallback_embed = discord.Embed(
+                title="🎵 Complete Your Submission",
+                description=f"{message.author.mention}, I can't DM you! Click below to continue your submission.",
+                color=discord.Color.orange()
+            )
+            public_message = await message.channel.send(embed=fallback_embed, view=view)
+            view.message = public_message
+        except discord.HTTPException:
+            pass # Fail silently
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -71,19 +110,7 @@ class ModerationCog(commands.Cog):
                     await message.delete()
                 except (discord.NotFound, discord.Forbidden): pass
 
-                view = AddSubmissionDetailView(self.bot, attachment.url)
-                embed = discord.Embed(title="🎵 Complete Your File Submission", color=discord.Color.purple(),
-                                      description="You've uploaded a file! Click the button below to add the artist and song details.")
-                embed.set_footer(text="This prompt will time out in 5 minutes.")
-
-                try:
-                    dm_message = await message.author.send(embed=embed, view=view)
-                    view.message = dm_message
-                except discord.Forbidden:
-                    fallback_embed = discord.Embed(title="🎵 Complete Your Submission", color=discord.Color.orange(),
-                                                   description=f"{message.author.mention}, I can't DM you! Click below to add details for your submission.")
-                    public_message = await message.channel.send(embed=fallback_embed, view=view)
-                    view.message = public_message
+                await self._start_submission_process(message, attachment.url, "File")
                 return
 
         # --- Handle Links ---
@@ -107,19 +134,7 @@ class ModerationCog(commands.Cog):
                 await message.delete()
             except (discord.NotFound, discord.Forbidden): pass
 
-            view = AddSubmissionDetailView(self.bot, url)
-            embed = discord.Embed(title="🎵 Complete Your Link Submission", color=discord.Color.purple(),
-                                  description="You've posted a link! Click the button below to add the artist and song details.")
-            embed.set_footer(text="This prompt will time out in 5 minutes.")
-
-            try:
-                dm_message = await message.author.send(embed=embed, view=view)
-                view.message = dm_message
-            except discord.Forbidden:
-                fallback_embed = discord.Embed(title="🎵 Complete Your Submission", color=discord.Color.orange(),
-                                               description=f"{message.author.mention}, I can't DM you! Click below to add details for your submission.")
-                public_message = await message.channel.send(embed=fallback_embed, view=view)
-                view.message = public_message
+            await self._start_submission_process(message, url, "Link")
             return
 
         # --- Action: Delete any other messages and send guidance ---
