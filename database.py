@@ -370,6 +370,23 @@ class Database:
                         return None
         return None
 
+    async def get_all_bot_settings(self) -> Dict[str, Any]:
+        """Get all settings from the bot_settings table."""
+        settings = {}
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT key, value FROM bot_settings") as cursor:
+                async for row in cursor:
+                    key, value = row
+                    # Try to convert to int if possible, otherwise keep as string
+                    if value is not None:
+                        try:
+                            settings[key] = int(value)
+                        except (ValueError, TypeError):
+                            settings[key] = value
+                    else:
+                        settings[key] = None
+        return settings
+
     async def close(self):
         """Close database connection"""
         pass
