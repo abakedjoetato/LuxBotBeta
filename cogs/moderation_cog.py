@@ -12,6 +12,13 @@ class ModerationCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
     
+    def _is_admin_or_mod(self, member: discord.Member) -> bool:
+        """Check if a member has admin or moderator permissions."""
+        if isinstance(member, discord.User):  # User in DMs, no permissions
+            return False
+        # Simplified check for guild permissions
+        return member.guild_permissions.manage_messages or member.guild_permissions.manage_guild
+
     async def _start_submission_process(self, message: discord.Message, submission_url: str, submission_type: str):
         """Checks if the free line is open and sends the appropriate view to the user."""
         is_open = await self.bot.db.is_free_line_open()
@@ -63,6 +70,9 @@ class ModerationCog(commands.Cog):
             return
         
         # --- Permission and content checks ---
+        if self._is_admin_or_mod(message.author):
+            return
+
         # Don't delete the main submission portal embed message
         if message.embeds and any("Music Submission Portal" in (e.title or "") for e in message.embeds):
             return
@@ -70,12 +80,10 @@ class ModerationCog(commands.Cog):
         # --- Handle File Uploads ---
         if message.attachments:
             attachment = message.attachments[0]
-
-            # --- Use content_type for reliable file detection ---
-            valid_content_types = ('audio/mpeg', 'audio/mp4', 'audio/flac')
+            valid_extensions = ('.mp3', '.m4a', '.flac')
 
             # WAV file check
-            if attachment.content_type == 'audio/wav':
+            if attachment.filename.lower().endswith('.wav'):
                 try:
                     await message.delete()
                 except (discord.NotFound, discord.Forbidden): pass
@@ -85,8 +93,8 @@ class ModerationCog(commands.Cog):
                 )
                 return
 
-            # Check for other valid audio file types
-            if attachment.content_type in valid_content_types:
+            # Other valid audio file checks
+            if attachment.filename.lower().endswith(valid_extensions):
                 if attachment.size > 25 * 1024 * 1024:
                     try:
                         await message.delete()
