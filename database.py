@@ -6,6 +6,7 @@ Handles SQLite operations for submissions and queue management
 import aiosqlite
 import asyncio
 import os
+import random
 from typing import List, Dict, Optional, Any
 from enum import Enum
 
@@ -15,6 +16,7 @@ class QueueLine(Enum):
     DOUBLESKIP = "DoubleSkip"
     SKIP = "Skip"
     FREE = "Free"
+    PENDING_SKIPS = "Pending Skips"
     CALLS_PLAYED = "Calls Played"
 
 class Database:
@@ -29,6 +31,7 @@ class Database:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS submissions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    public_id TEXT,
                     user_id INTEGER NOT NULL,
                     username TEXT NOT NULL,
                     artist_name TEXT NOT NULL,
@@ -41,11 +44,22 @@ class Database:
                 )
             """)
 
-            # For existing databases, add played_time column if it doesn't exist
+            # For existing databases, add columns if they don't exist
             async with db.execute("PRAGMA table_info(submissions)") as cursor:
                 columns = [row[1] for row in await cursor.fetchall()]
             if 'played_time' not in columns:
                 await db.execute("ALTER TABLE submissions ADD COLUMN played_time DATETIME")
+            if 'public_id' not in columns:
+                await db.execute("ALTER TABLE submissions ADD COLUMN public_id TEXT")
+                await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_public_id ON submissions (public_id)")
+
+            # Populate public_id for existing rows
+            async with db.execute("SELECT id FROM submissions WHERE public_id IS NULL") as cursor:
+                rows_to_update = await cursor.fetchall()
+                for row in rows_to_update:
+                    submission_id = row[0]
+                    public_id = await self._generate_unique_submission_id(db)
+                    await db.execute("UPDATE submissions SET public_id = ? WHERE id = ?", (public_id, submission_id))
 
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS channel_settings (
@@ -61,6 +75,8 @@ class Database:
                     value TEXT
                 )
             """)
+            # Add default settings
+            await db.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES ('free_line_closed', '0')")
 
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS submission_channel (
@@ -69,31 +85,30 @@ class Database:
                 )
             """)
 
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS submission_status (
-                    id INTEGER PRIMARY KEY,
-                    submissions_open BOOLEAN DEFAULT 1
-                )
-            """)
-
-            await db.execute("""
-                INSERT OR IGNORE INTO submission_status (id, submissions_open) VALUES (1, 1)
-            """)
+            await db.execute("DROP TABLE IF EXISTS submission_status")
 
             await db.commit()
+
+    async def _generate_unique_submission_id(self, db: aiosqlite.Connection) -> str:
+        """Generate a unique 6-digit random string for a submission ID."""
+        while True:
+            new_id = f"{random.randint(0, 999999):06d}"
+            async with db.execute("SELECT 1 FROM submissions WHERE public_id = ?", (new_id,)) as cursor:
+                if await cursor.fetchone() is None:
+                    return new_id
 
     async def add_submission(self, user_id: int, username: str, artist_name: str,
-                           song_name: str, link_or_file: str, queue_line: str) -> int:
-        """Add a new submission to the database"""
+                           song_name: str, link_or_file: str, queue_line: str) -> str:
+        """Add a new submission to the database and return its public ID."""
         async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute("""
-                INSERT INTO submissions (user_id, username, artist_name, song_name, link_or_file, queue_line)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (user_id, username, artist_name, song_name, link_or_file, queue_line))
+            public_id = await self._generate_unique_submission_id(db)
+            await db.execute("""
+                INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line))
 
-            submission_id = cursor.lastrowid
             await db.commit()
-            return submission_id or 0
+            return public_id
 
     async def get_user_submissions(self, user_id: int) -> List[Dict[str, Any]]:
         """Get all submissions for a specific user"""
@@ -143,19 +158,19 @@ class Database:
                 result = await cursor.fetchone()
                 return result[0] if result else 0
 
-    async def remove_submission(self, submission_id: int) -> Optional[str]:
-        """Remove a submission by ID and return its original queue line."""
+    async def remove_submission(self, public_id: str) -> Optional[str]:
+        """Remove a submission by public ID and return its original queue line."""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("BEGIN"):
-                async with db.execute("SELECT queue_line FROM submissions WHERE id = ?", (submission_id,)) as cursor:
+                async with db.execute("SELECT queue_line FROM submissions WHERE public_id = ?", (public_id,)) as cursor:
                     row = await cursor.fetchone()
                     if not row:
                         return None
 
                 original_line = row['queue_line']
 
-                cursor = await db.execute("DELETE FROM submissions WHERE id = ?", (submission_id,))
+                cursor = await db.execute("DELETE FROM submissions WHERE public_id = ?", (public_id,))
                 if cursor.rowcount == 0:
                     await db.rollback()
                     return None
@@ -163,12 +178,12 @@ class Database:
             await db.commit()
             return original_line
 
-    async def move_submission(self, submission_id: int, target_line: str) -> Optional[str]:
-        """Move a submission to a different queue line and return its original queue line."""
+    async def move_submission(self, public_id: str, target_line: str) -> Optional[str]:
+        """Move a submission to a different queue line, update its timestamp, and return its original queue line."""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("BEGIN"):
-                async with db.execute("SELECT queue_line FROM submissions WHERE id = ?", (submission_id,)) as cursor:
+                async with db.execute("SELECT queue_line FROM submissions WHERE public_id = ?", (public_id,)) as cursor:
                     row = await cursor.fetchone()
                     if not row:
                         return None
@@ -177,7 +192,7 @@ class Database:
                 if original_line == target_line:
                     return original_line
 
-                cursor = await db.execute("UPDATE submissions SET queue_line = ? WHERE id = ?", (target_line, submission_id))
+                cursor = await db.execute("UPDATE submissions SET queue_line = ?, submission_time = CURRENT_TIMESTAMP WHERE public_id = ?", (target_line, public_id))
                 if cursor.rowcount == 0:
                     await db.rollback()
                     return None
@@ -186,7 +201,7 @@ class Database:
             return original_line
 
     async def get_next_submission(self) -> Optional[Dict[str, Any]]:
-        """Get the next submission following priority order"""
+        """Get the next submission following priority order, excluding Pending Skips."""
         priority_order = [QueueLine.BACKTOBACK.value, QueueLine.DOUBLESKIP.value,
                          QueueLine.SKIP.value, QueueLine.FREE.value]
 
@@ -207,7 +222,6 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             for queue_line in priority_order:
-                # Find the next submission without holding a transaction open
                 async with db.execute("SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT 1", (queue_line,)) as cursor:
                     row = await cursor.fetchone()
 
@@ -215,12 +229,11 @@ class Database:
                     submission_dict = dict(row)
                     original_line = submission_dict['queue_line']
 
-                    # Perform the update and commit in a single transaction
                     await db.execute(
                         "UPDATE submissions SET queue_line = ?, played_time = CURRENT_TIMESTAMP WHERE id = ?",
                         (QueueLine.CALLS_PLAYED.value, submission_dict['id'])
                     )
-                    await db.commit() # Commit the change to disk
+                    await db.commit()
 
                     submission_dict['original_line'] = original_line
                     return submission_dict
@@ -266,18 +279,19 @@ class Database:
                 row = await cursor.fetchone()
                 return row[0] if row else None
 
-    async def set_submissions_status(self, open_status: bool):
-        """Set whether submissions are open or closed"""
+    async def set_free_line_status(self, is_open: bool):
+        """Set whether the Free line is open or closed."""
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE submission_status SET submissions_open = ? WHERE id = 1", (open_status,))
+            await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('free_line_closed', ?)", ('0' if is_open else '1',))
             await db.commit()
 
-    async def are_submissions_open(self) -> bool:
-        """Check if submissions are currently open"""
+    async def is_free_line_open(self) -> bool:
+        """Check if the Free line is currently open."""
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT submissions_open FROM submission_status WHERE id = 1") as cursor:
+            async with db.execute("SELECT value FROM bot_settings WHERE key = 'free_line_closed'") as cursor:
                 row = await cursor.fetchone()
-                return bool(row[0]) if row else True
+                # Default to open if not set
+                return row[0] == '0' if row else True
 
     async def clear_free_line(self) -> int:
         """Clear all submissions from the Free line and return count of cleared submissions"""
@@ -294,36 +308,29 @@ class Database:
             await db.commit()
             return count
 
-    async def set_bookmark_channel(self, channel_id: int):
-        """Set the bookmark channel, ensuring the change is committed."""
+    async def set_now_playing_channel(self, channel_id: int):
+        """Set the now playing channel."""
         async with aiosqlite.connect(self.db_path) as db:
-            # Use a more explicit update-or-insert pattern to ensure commit behavior.
-            # First, attempt to update an existing record.
-            cursor = await db.execute(
-                "UPDATE bot_settings SET value = ? WHERE key = 'bookmark_channel'",
-                (str(channel_id),)
-            )
-            # If no record was updated, it means one doesn't exist, so insert it.
-            if cursor.rowcount == 0:
-                await db.execute(
-                    "INSERT INTO bot_settings (key, value) VALUES ('bookmark_channel', ?)",
-                    (str(channel_id),)
-                )
-            # Explicitly commit the transaction to save the changes to the database file.
+            await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('now_playing_channel_id', ?)", (str(channel_id),))
             await db.commit()
 
-    async def get_bookmark_channel(self) -> Optional[int]:
-        """Get the bookmark channel ID"""
+    async def get_now_playing_channel(self) -> Optional[int]:
+        """Get the now playing channel ID"""
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT value FROM bot_settings WHERE key = 'bookmark_channel'") as cursor:
+            async with db.execute("SELECT value FROM bot_settings WHERE key = 'now_playing_channel_id'") as cursor:
                 row = await cursor.fetchone()
-                return int(row[0]) if row else None
+                if row and row[0]:
+                    try:
+                        return int(row[0])
+                    except (ValueError, TypeError):
+                        return None
+        return None
 
-    async def get_submission_by_id(self, submission_id: int) -> Optional[Dict[str, Any]]:
-        """Get a specific submission by ID"""
+    async def get_submission_by_id(self, public_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific submission by public ID"""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM submissions WHERE id = ?", (submission_id,)) as cursor:
+            async with db.execute("SELECT * FROM submissions WHERE public_id = ?", (public_id,)) as cursor:
                 row = await cursor.fetchone()
                 return dict(row) if row else None
 

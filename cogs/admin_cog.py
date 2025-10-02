@@ -10,15 +10,14 @@ from typing import Optional
 from .checks import is_admin
 
 class NextActionView(discord.ui.View):
-    def __init__(self, bot, submission_id: int):
+    def __init__(self, bot, submission_public_id: str):
         super().__init__(timeout=3600)  # 1 hour timeout
         self.bot = bot
-        self.submission_id = submission_id
+        self.submission_public_id = submission_public_id
 
     @discord.ui.button(label="Bookmark", style=discord.ButtonStyle.success, emoji="🔖")
     async def bookmark_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
-            # Defer interaction to prevent timeout and allow for follow-up messages
             await interaction.response.defer(ephemeral=True)
 
             bookmark_channel_id = await self.bot.db.get_bookmark_channel()
@@ -28,12 +27,12 @@ class NextActionView(discord.ui.View):
 
             bookmark_channel = self.bot.get_channel(bookmark_channel_id)
             if not bookmark_channel:
-                await interaction.followup.send("❌ Bookmark channel not found. Please set a new one with `/setbookmarkchannel`.", ephemeral=True)
+                await interaction.followup.send("❌ Bookmark channel not found. Please set a new one.", ephemeral=True)
                 return
 
-            submission = await self.bot.db.get_submission_by_id(self.submission_id)
+            submission = await self.bot.db.get_submission_by_id(self.submission_public_id)
             if not submission:
-                await interaction.followup.send(f"❌ Submission #{self.submission_id} not found.", ephemeral=True)
+                await interaction.followup.send(f"❌ Submission #{self.submission_public_id} not found.", ephemeral=True)
                 return
 
             embed = discord.Embed(
@@ -42,7 +41,7 @@ class NextActionView(discord.ui.View):
                 color=discord.Color.gold()
             )
 
-            embed.add_field(name="Submission ID", value=f"#{submission['id']}", inline=True)
+            embed.add_field(name="Submission ID", value=f"#{submission['public_id']}", inline=True)
             embed.add_field(name="Queue Line", value=submission['queue_line'], inline=True)
             embed.add_field(name="Submitted By", value=submission['username'], inline=True)
             embed.add_field(name="Artist", value=submission['artist_name'], inline=True)
@@ -57,10 +56,8 @@ class NextActionView(discord.ui.View):
             embed.set_footer(text=f"Originally submitted on {submission['submission_time']} | Luxurious Radio By Emerald Beats")
             embed.timestamp = discord.utils.utcnow()
 
-            # Perform the main action
             await bookmark_channel.send(embed=embed)
 
-            # Update the original message with the disabled button to confirm success
             button.disabled = True
             button.label = "Bookmarked"
             await interaction.edit_original_response(view=self)
@@ -70,7 +67,6 @@ class NextActionView(discord.ui.View):
             if interaction.response.is_done():
                 await interaction.followup.send(error_message, ephemeral=True)
             else:
-                # This is a fallback, but defer should make this path unlikely
                 await interaction.response.send_message(error_message, ephemeral=True)
 
 class AdminCog(commands.Cog):
@@ -93,11 +89,7 @@ class AdminCog(commands.Cog):
         channel="The text channel to use for this line"
     )
     @app_commands.choices(line=[
-        app_commands.Choice(name="BackToBack", value="BackToBack"),
-        app_commands.Choice(name="DoubleSkip", value="DoubleSkip"),
-        app_commands.Choice(name="Skip", value="Skip"),
-        app_commands.Choice(name="Free", value="Free"),
-        app_commands.Choice(name="Calls Played", value="Calls Played")
+        app_commands.Choice(name=ql.name.replace("_", " ").title(), value=ql.value) for ql in QueueLine
     ])
     @is_admin()
     async def set_line(self, interaction: discord.Interaction, line: str, channel: discord.TextChannel):
@@ -121,34 +113,31 @@ class AdminCog(commands.Cog):
     
     @app_commands.command(name="move", description="Move a submission to a different queue line")
     @app_commands.describe(
-        submission_id="The ID of the submission to move",
+        submission_id="The ID of the submission to move (e.g., #123456)",
         target_line="The target queue line"
     )
     @app_commands.choices(target_line=[
-        app_commands.Choice(name="BackToBack", value="BackToBack"),
-        app_commands.Choice(name="DoubleSkip", value="DoubleSkip"),
-        app_commands.Choice(name="Skip", value="Skip"),
-        app_commands.Choice(name="Free", value="Free"),
-        app_commands.Choice(name="Calls Played", value="Calls Played")
+        app_commands.Choice(name=ql.name.replace("_", " ").title(), value=ql.value) for ql in QueueLine if ql != QueueLine.CALLS_PLAYED
     ])
     @is_admin()
-    async def move_submission(self, interaction: discord.Interaction, submission_id: int, target_line: str):
+    async def move_submission(self, interaction: discord.Interaction, submission_id: str, target_line: str):
         """Move a submission between queue lines"""
+        public_id = submission_id.strip('#')
         try:
-            original_line = await self.bot.db.move_submission(submission_id, target_line)
+            original_line = await self.bot.db.move_submission(public_id, target_line)
             
             if original_line:
                 await self._update_queues(original_line, target_line)
                 
                 embed = discord.Embed(
                     title="✅ Submission Moved",
-                    description=f"Submission #{submission_id} has been moved to **{target_line}** line.",
+                    description=f"Submission `#{public_id}` has been moved to **{target_line}** line.",
                     color=discord.Color.green()
                 )
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             else:
                 await interaction.response.send_message(
-                    f"❌ Submission #{submission_id} not found.", 
+                    f"❌ Submission `#{public_id}` not found.",
                     ephemeral=True
                 )
                 
@@ -159,25 +148,26 @@ class AdminCog(commands.Cog):
             )
     
     @app_commands.command(name="remove", description="Remove a submission from the queue")
-    @app_commands.describe(submission_id="The ID of the submission to remove")
+    @app_commands.describe(submission_id="The ID of the submission to remove (e.g., #123456)")
     @is_admin()
-    async def remove_submission(self, interaction: discord.Interaction, submission_id: int):
+    async def remove_submission(self, interaction: discord.Interaction, submission_id: str):
         """Remove a submission from the queue"""
+        public_id = submission_id.strip('#')
         try:
-            original_line = await self.bot.db.remove_submission(submission_id)
+            original_line = await self.bot.db.remove_submission(public_id)
             
             if original_line:
                 await self._update_queues(original_line)
                 
                 embed = discord.Embed(
                     title="✅ Submission Removed",
-                    description=f"Submission #{submission_id} has been removed from the queue.",
+                    description=f"Submission `#{public_id}` has been removed from the queue.",
                     color=discord.Color.green()
                 )
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             else:
                 await interaction.response.send_message(
-                    f"❌ Submission #{submission_id} not found.", 
+                    f"❌ Submission `#{public_id}` not found.",
                     ephemeral=True
                 )
                 
@@ -225,13 +215,22 @@ class AdminCog(commands.Cog):
                 await interaction.response.send_message(embed=embed, ephemeral=True)
                 return
             
+            # Announce to #now-playing channel if set
+            now_playing_channel_id = await self.bot.db.get_now_playing_channel()
+            if now_playing_channel_id:
+                channel = self.bot.get_channel(now_playing_channel_id)
+                if channel:
+                    user = self.bot.get_user(next_sub['user_id']) or f"<@{next_sub['user_id']}>"
+                    announcement = f"🎶 Now Playing: {next_sub['artist_name']} – {next_sub['song_name']} (submitted by {user.mention})"
+                    await channel.send(announcement)
+
             embed = discord.Embed(
                 title="🎵 Now Playing - Moved to Calls Played",
                 description=f"Moved from **{next_sub['original_line']}** line to **Calls Played**",
                 color=discord.Color.gold()
             )
             
-            embed.add_field(name="Submission ID", value=f"#{next_sub['id']}", inline=True)
+            embed.add_field(name="Submission ID", value=f"#{next_sub['public_id']}", inline=True)
             embed.add_field(name="Original Line", value=next_sub['original_line'], inline=True)
             embed.add_field(name="Submitted By", value=next_sub['username'], inline=True)
             embed.add_field(name="Artist", value=next_sub['artist_name'], inline=True)
@@ -244,15 +243,10 @@ class AdminCog(commands.Cog):
             
             embed.set_footer(text=f"Submitted on {next_sub['submission_time']} | Luxurious Radio By Emerald Beats")
             
-            view = NextActionView(self.bot, next_sub['id'])
+            view = NextActionView(self.bot, next_sub['public_id'])
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
             
             await self._update_queues(next_sub['original_line'], QueueLine.CALLS_PLAYED.value)
-            
-            try:
-                await interaction.user.send(embed=embed)
-            except discord.Forbidden:
-                pass
             
         except Exception as e:
             await interaction.response.send_message(
@@ -260,35 +254,35 @@ class AdminCog(commands.Cog):
                 ephemeral=True
             )
     
-    @app_commands.command(name="opensubmissions", description="Open submissions for users")
+    @app_commands.command(name="opensubmissions", description="Open submissions for the Free line")
     @is_admin()
     async def open_submissions(self, interaction: discord.Interaction):
-        """Open submissions"""
+        """Open submissions for the Free line"""
         try:
-            await self.bot.db.set_submissions_status(True)
+            await self.bot.db.set_free_line_status(True)
             embed = discord.Embed(
-                title="✅ Submissions Opened",
-                description="Users can now submit music using `/submit` and `/submitfile` commands.",
+                title="✅ Free Line Opened",
+                description="Users can now submit music to the **Free** line.",
                 color=discord.Color.green()
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"❌ Error opening submissions: {str(e)}", ephemeral=True)
+            await interaction.response.send_message(f"❌ Error opening Free line: {str(e)}", ephemeral=True)
     
-    @app_commands.command(name="closesubmissions", description="Close submissions for users")
+    @app_commands.command(name="closesubmissions", description="Close submissions for the Free line")
     @is_admin()
     async def close_submissions(self, interaction: discord.Interaction):
-        """Close submissions"""
+        """Close submissions for the Free line"""
         try:
-            await self.bot.db.set_submissions_status(False)
+            await self.bot.db.set_free_line_status(False)
             embed = discord.Embed(
-                title="🚫 Submissions Closed",
-                description="Users can no longer submit music. Use `/opensubmissions` to re-enable.",
+                title="🚫 Free Line Closed",
+                description="Users can no longer submit to the **Free** line. Skip submissions are still allowed.",
                 color=discord.Color.red()
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"❌ Error closing submissions: {str(e)}", ephemeral=True)
+            await interaction.response.send_message(f"❌ Error closing Free line: {str(e)}", ephemeral=True)
     
     @app_commands.command(name="clearfree", description="Clear all submissions from the Free line")
     @is_admin()
@@ -317,19 +311,35 @@ class AdminCog(commands.Cog):
             await self.bot.db.set_bookmark_channel(channel.id)
             embed = discord.Embed(
                 title="✅ Bookmark Channel Set",
-                description=f"Bookmark channel is now set to {channel.mention}\n\n"
-                           f"Use `/bookmark <submission_id>` to bookmark submissions to this channel.",
+                description=f"Bookmark channel is now set to {channel.mention}",
                 color=discord.Color.green()
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ Error setting bookmark channel: {str(e)}", ephemeral=True)
+
+    @app_commands.command(name="setnowplayingchannel", description="Set the channel for 'Now Playing' announcements")
+    @app_commands.describe(channel="The text channel to use for announcements")
+    @is_admin()
+    async def set_now_playing_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """Set the channel for 'Now Playing' announcements"""
+        try:
+            await self.bot.db.set_now_playing_channel(channel.id)
+            embed = discord.Embed(
+                title="✅ 'Now Playing' Channel Set",
+                description=f"'Now Playing' announcements will be sent to {channel.mention}",
+                color=discord.Color.green()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Error setting 'Now Playing' channel: {str(e)}", ephemeral=True)
     
     @app_commands.command(name="bookmark", description="Bookmark a submission to the bookmark channel")
-    @app_commands.describe(submission_id="The ID of the submission to bookmark")
+    @app_commands.describe(submission_id="The ID of the submission to bookmark (e.g., #123456)")
     @is_admin()
-    async def bookmark_submission(self, interaction: discord.Interaction, submission_id: int):
+    async def bookmark_submission(self, interaction: discord.Interaction, submission_id: str):
         """Bookmark a submission to the designated bookmark channel"""
+        public_id = submission_id.strip('#')
         try:
             bookmark_channel_id = await self.bot.db.get_bookmark_channel()
             if not bookmark_channel_id:
@@ -338,12 +348,12 @@ class AdminCog(commands.Cog):
             
             bookmark_channel = self.bot.get_channel(bookmark_channel_id)
             if not bookmark_channel:
-                await interaction.response.send_message("❌ Bookmark channel not found. Please set a new one with `/setbookmarkchannel`.", ephemeral=True)
+                await interaction.response.send_message("❌ Bookmark channel not found. Please set a new one.", ephemeral=True)
                 return
             
-            submission = await self.bot.db.get_submission_by_id(submission_id)
+            submission = await self.bot.db.get_submission_by_id(public_id)
             if not submission:
-                await interaction.response.send_message(f"❌ Submission #{submission_id} not found.", ephemeral=True)
+                await interaction.response.send_message(f"❌ Submission `#{public_id}` not found.", ephemeral=True)
                 return
             
             embed = discord.Embed(
@@ -352,7 +362,7 @@ class AdminCog(commands.Cog):
                 color=discord.Color.gold()
             )
             
-            embed.add_field(name="Submission ID", value=f"#{submission['id']}", inline=True)
+            embed.add_field(name="Submission ID", value=f"#{submission['public_id']}", inline=True)
             embed.add_field(name="Queue Line", value=submission['queue_line'], inline=True)
             embed.add_field(name="Submitted By", value=submission['username'], inline=True)
             embed.add_field(name="Artist", value=submission['artist_name'], inline=True)
@@ -371,7 +381,7 @@ class AdminCog(commands.Cog):
             
             embed_confirm = discord.Embed(
                 title="✅ Submission Bookmarked",
-                description=f"Submission #{submission_id} has been bookmarked to {bookmark_channel.mention}",
+                description=f"Submission `#{public_id}` has been bookmarked to {bookmark_channel.mention}",
                 color=discord.Color.green()
             )
             await interaction.response.send_message(embed=embed_confirm, ephemeral=True)

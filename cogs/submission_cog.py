@@ -8,9 +8,92 @@ from discord import app_commands
 import re
 from typing import Optional
 from database import QueueLine
-from .checks import submissions_open, check_submissions_open, is_admin
+from .checks import is_admin
 
+class SkipConfirmationView(discord.ui.View):
+    """A view to ask the user if the submission is a skip."""
+    def __init__(self, bot, submission_data: dict, timeout=180):
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.submission_data = submission_data
+        self.message: Optional[discord.Message] = None
 
+    async def handle_submission(self, interaction: discord.Interaction, is_skip: bool):
+        """Helper to handle the submission logic."""
+        # Disable buttons to prevent multiple clicks
+        for item in self.children:
+            item.disabled = True
+        if self.message:
+            await self.message.edit(view=self)
+
+        queue_line = QueueLine.PENDING_SKIPS.value if is_skip else QueueLine.FREE.value
+        line_name = "Pending Skips" if is_skip else "Free"
+
+        if not is_skip:
+            # Check if free line is open
+            if not await self.bot.db.is_free_line_open():
+                await interaction.response.send_message(
+                    "❌ Submissions to the Free line are currently closed.",
+                    ephemeral=True
+                )
+                return
+
+            # Check if user already has a submission in the Free line
+            existing_count = await self.bot.db.get_user_submission_count_in_line(
+                interaction.user.id, QueueLine.FREE.value
+            )
+            if existing_count > 0:
+                await interaction.response.send_message(
+                    "❌ You already have a submission in the Free line.",
+                    ephemeral=True
+                )
+                return
+
+        try:
+            public_id = await self.bot.db.add_submission(
+                user_id=interaction.user.id,
+                username=interaction.user.display_name,
+                artist_name=self.submission_data['artist_name'],
+                song_name=self.submission_data['song_name'],
+                link_or_file=self.submission_data['link_or_file'],
+                queue_line=queue_line
+            )
+
+            embed = discord.Embed(
+                title="✅ Submission Added!",
+                description=f"Your music has been added to the **{line_name}** line.",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Artist", value=self.submission_data['artist_name'], inline=True)
+            embed.add_field(name="Song", value=self.submission_data['song_name'], inline=True)
+            embed.add_field(name="Submission ID", value=f"#{public_id}", inline=False)
+            embed.set_footer(text="Use /myqueue to see your submissions | Luxurious Radio By Emerald Beats")
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            # Update queue display
+            if hasattr(self.bot, 'get_cog') and self.bot.get_cog('QueueCog'):
+                await self.bot.get_cog('QueueCog').update_queue_display(queue_line)
+
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ An error occurred: {str(e)}",
+                ephemeral=True
+            )
+
+    @discord.ui.button(label="Yes, it's a Skip", style=discord.ButtonStyle.success)
+    async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_submission(interaction, is_skip=True)
+
+    @discord.ui.button(label="No, it's for the Free line", style=discord.ButtonStyle.danger)
+    async def no_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_submission(interaction, is_skip=False)
+
+    async def on_timeout(self):
+        if self.message:
+            for item in self.children:
+                item.disabled = True
+            await self.message.edit(content="This submission request has timed out.", view=self)
 
 class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
     """Modal form for music submissions"""
@@ -41,10 +124,7 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        """Handle form submission"""
-        if not await check_submissions_open(interaction):
-            return
-
+        """Handle form submission by asking if it's a skip."""
         link_value = str(self.link_or_file.value).strip()
 
         if not (link_value.startswith('http://') or link_value.startswith('https://')):
@@ -61,48 +141,16 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
             )
             return
 
-        existing_count = await self.bot.db.get_user_submission_count_in_line(
-            interaction.user.id, QueueLine.FREE.value
-        )
+        submission_data = {
+            'artist_name': str(self.artist_name.value).strip(),
+            'song_name': str(self.song_name.value).strip(),
+            'link_or_file': link_value
+        }
 
-        if existing_count > 0:
-            await interaction.response.send_message(
-                "❌ You already have a submission in the Free line.",
-                ephemeral=True
-            )
-            return
+        view = SkipConfirmationView(self.bot, submission_data)
+        await interaction.response.send_message("Is this a **Skip** submission?", view=view, ephemeral=True)
+        view.message = await interaction.original_response()
 
-        try:
-            submission_id = await self.bot.db.add_submission(
-                user_id=interaction.user.id,
-                username=interaction.user.display_name,
-                artist_name=str(self.artist_name.value).strip(),
-                song_name=str(self.song_name.value).strip(),
-                link_or_file=link_value,
-                queue_line=QueueLine.FREE.value
-            )
-
-            embed = discord.Embed(
-                title="✅ Submission Added!",
-                description=f"Your music has been added to the **Free** line.",
-                color=discord.Color.green()
-            )
-            embed.add_field(name="Artist", value=self.artist_name.value, inline=True)
-            embed.add_field(name="Song", value=self.song_name.value, inline=True)
-            embed.add_field(name="Submission ID", value=f"#{submission_id}", inline=False)
-            embed.set_footer(text="Use /myqueue to see your submissions | Luxurious Radio By Emerald Beats")
-
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
-            if hasattr(self.bot, 'get_cog') and self.bot.get_cog('QueueCog'):
-                queue_cog = self.bot.get_cog('QueueCog')
-                await queue_cog.update_queue_display(QueueLine.FREE.value)
-
-        except Exception as e:
-            await interaction.response.send_message(
-                f"❌ An error occurred: {str(e)}",
-                ephemeral=True
-            )
 
 class SubmissionButtonView(discord.ui.View):
     """Persistent view with submission buttons"""
@@ -144,7 +192,6 @@ class SubmissionCog(commands.Cog):
         pass
 
     @app_commands.command(name="submit", description="Submit music for review using a link")
-    @submissions_open()
     async def submit(self, interaction: discord.Interaction):
         """Open submission modal for link submissions"""
         modal = SubmissionModal(self.bot)
@@ -156,7 +203,6 @@ class SubmissionCog(commands.Cog):
         artist_name="Name of the artist",
         song_name="Title of the song"
     )
-    @submissions_open()
     async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str):
         """Submit an MP3 file for review"""
         valid_extensions = ('.mp3', '.m4a', '.flac')
@@ -180,39 +226,16 @@ class SubmissionCog(commands.Cog):
             await interaction.response.send_message("❌ Artist and song names must be 100 characters or less.", ephemeral=True)
             return
 
-        existing_count = await self.bot.db.get_user_submission_count_in_line(interaction.user.id, QueueLine.FREE.value)
-        if existing_count > 0:
-            await interaction.response.send_message("❌ You already have a submission in the Free line.", ephemeral=True)
-            return
+        submission_data = {
+            'artist_name': artist_name.strip(),
+            'song_name': song_name.strip(),
+            'link_or_file': file.url
+        }
 
-        try:
-            submission_id = await self.bot.db.add_submission(
-                user_id=interaction.user.id,
-                username=interaction.user.display_name,
-                artist_name=artist_name.strip(),
-                song_name=song_name.strip(),
-                link_or_file=file.url,
-                queue_line=QueueLine.FREE.value
-            )
+        view = SkipConfirmationView(self.bot, submission_data)
+        await interaction.response.send_message("Is this a **Skip** submission?", view=view, ephemeral=True)
+        view.message = await interaction.original_response()
 
-            embed = discord.Embed(
-                title="✅ File Submission Added!",
-                description=f"Your music file has been added to the **Free** line.",
-                color=discord.Color.green()
-            )
-            embed.add_field(name="Artist", value=artist_name, inline=True)
-            embed.add_field(name="Song", value=song_name, inline=True)
-            embed.add_field(name="File", value=file.filename, inline=True)
-            embed.add_field(name="Submission ID", value=f"#{submission_id}", inline=False)
-            embed.set_footer(text="Use /myqueue to see your submissions | Luxurious Radio By Emerald Beats")
-
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
-            if hasattr(self.bot, 'get_cog') and self.bot.get_cog('QueueCog'):
-                await self.bot.get_cog('QueueCog').update_queue_display(QueueLine.FREE.value)
-
-        except Exception as e:
-            await interaction.response.send_message(f"❌ An error occurred: {str(e)}", ephemeral=True)
 
     @app_commands.command(name="myqueue", description="View your submissions in all queues")
     async def my_queue(self, interaction: discord.Interaction):
@@ -224,16 +247,13 @@ class SubmissionCog(commands.Cog):
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        lines = {line.value: [] for line in QueueLine}
-        for sub in submissions:
-            lines[sub['queue_line']].append(sub)
-
         embed = discord.Embed(title="Your Queue Submissions", color=discord.Color.blue())
 
-        for line_name, subs in lines.items():
-            if subs:
-                value = "\n".join([f"**#{s['id']}** - *{s['artist_name']} – {s['song_name']}*" for s in subs])
-                embed.add_field(name=f"{line_name} Line ({len(subs)})", value=value, inline=False)
+        description_lines = []
+        for sub in submissions:
+            description_lines.append(f"**{sub['artist_name']} – {sub['song_name']}** `(ID: #{sub['public_id']})`")
+
+        embed.description = "\n".join(description_lines) if description_lines else "You have no submissions."
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
