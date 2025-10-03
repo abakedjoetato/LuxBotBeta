@@ -99,23 +99,35 @@ class AdminCog(commands.Cog):
     ])
     @is_admin()
     async def set_line(self, interaction: discord.Interaction, line: str, channel: discord.TextChannel):
-        """Set the channel for a queue line"""
+        """Set the channel for a queue line with detailed feedback."""
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         try:
+            # Step 1: Call the database function
+            await interaction.followup.send(f"⚙️ Accessing the database to set **{line}**...", ephemeral=True)
             await self.bot.db.set_channel_for_line(line, channel.id)
+
+            # Step 2: Update the queue display
+            await interaction.followup.send("🔄 Updating the queue display...", ephemeral=True)
             await self._update_queues(line)
             
+            # Step 3: Final confirmation
             embed = discord.Embed(
-                title="✅ Line Channel Set",
-                description=f"**{line}** line is now set to {channel.mention}",
+                title="✅ Line Channel Set Successfully",
+                description=f"The **{line}** line has been set to {channel.mention}.",
                 color=discord.Color.green()
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
             
         except Exception as e:
-            await interaction.response.send_message(
-                f"❌ Error setting line channel: {str(e)}", 
-                ephemeral=True
+            # Send a detailed error message if anything fails
+            error_embed = discord.Embed(
+                title=f"❌ An Error Occurred While Setting '{line}'",
+                description="Failed to set the line channel. Here's the error information:",
+                color=discord.Color.red()
             )
+            error_embed.add_field(name="Error Details", value=f"```\n{e}\n```", inline=False)
+            await interaction.followup.send(embed=error_embed, ephemeral=True)
     
     @app_commands.command(name="move", description="Move a submission to a different queue line")
     @app_commands.describe(
