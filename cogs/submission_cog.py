@@ -304,14 +304,14 @@ class SubmissionCog(commands.Cog):
     @is_admin()
     async def setup_submission_buttons(self, interaction: discord.Interaction):
         """Setup submission buttons embed (admin only)"""
-        embed = discord.Embed(title="🎵 Music Submission Portal", description="Please follow the instructions for the submission type you are using.", color=discord.Color.blue())
+        embed = discord.Embed(title="🎵 Music Submission Portal", description="Please follow the instructions for the submission type you are using.\n", color=discord.Color.blue())
 
         link_instructions = (
             "1. Click the **'Submit Link'** button below.\n"
             "2. Fill out the form fields for artist, song, and link.\n"
             "3. Hit **Enter** to submit the form.\n"
             "4. A message will ask if it's a skip. **Do not click 'Yes' unless you plan to send a skip.** "
-            "Visit the `#🚨skip-the-line-info` channel for more information."
+            "Visit the <#1402750608678846474> channel for more information."
         )
         embed.add_field(name="🔗 How to Submit a Link", value=link_instructions, inline=False)
 
@@ -325,7 +325,7 @@ class SubmissionCog(commands.Cog):
             "4. You can click `+2 more` to add a TikTok handle or a note.\n"
             "5. Press **Enter** to submit.\n"
             "6. A message will ask if it's a skip. **Do not click 'Yes' unless you plan to send a skip.** "
-            "Visit the `#🚨skip-the-line-info` channel for more information."
+            "Visit the <#1402750608678846474> channel for more information."
         )
         embed.add_field(name="📁 How to Submit a File", value=file_instructions, inline=False)
         embed.set_footer(text="Click the buttons below to start submitting! | Luxurious Radio By Emerald Beats")
