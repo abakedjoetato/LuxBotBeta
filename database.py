@@ -370,17 +370,10 @@ class Database:
                 return dict(row) if row else None
 
     async def set_bookmark_channel(self, channel_id: int):
-        """Set the bookmark channel."""
-        print(f"DATABASE: Attempting to set bookmark channel to ID: {channel_id}")
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                print("DATABASE: Connection successful.")
-                await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bookmark_channel_id', ?)", (str(channel_id),))
-                print(f"DATABASE: Executed INSERT OR REPLACE for bookmark_channel_id with value {channel_id}.")
-                await db.commit()
-                print("DATABASE: Commit successful for set_bookmark_channel.")
-        except Exception as e:
-            print(f"DATABASE: ERROR in set_bookmark_channel: {e}")
+        """Set the bookmark channel. Raises an exception on failure."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bookmark_channel_id', ?)", (str(channel_id),))
+            await db.commit()
 
     async def get_bookmark_channel(self) -> Optional[int]:
         """Get the bookmark channel ID"""

@@ -319,18 +319,35 @@ class AdminCog(commands.Cog):
     @app_commands.describe(channel="The text channel to use for bookmarks")
     @is_admin()
     async def set_bookmark_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        """Set the channel for bookmarked submissions"""
+        """Set the channel for bookmarked submissions with detailed feedback."""
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         try:
+            # Step 1: Call the database function
+            await interaction.followup.send("⚙️ Accessing the database...", ephemeral=True)
             await self.bot.db.set_bookmark_channel(channel.id)
+
+            # Step 2: Update the local cache
+            await interaction.followup.send("📝 Updating live settings cache...", ephemeral=True)
             self.bot.settings_cache['bookmark_channel_id'] = channel.id
+
+            # Step 3: Final confirmation
             embed = discord.Embed(
-                title="✅ Bookmark Channel Set",
-                description=f"Bookmark channel is now set to {channel.mention}",
+                title="✅ Bookmark Channel Set Successfully",
+                description=f"The bookmark channel has been set to {channel.mention}.",
                 color=discord.Color.green()
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
         except Exception as e:
-            await interaction.response.send_message(f"❌ Error setting bookmark channel: {str(e)}", ephemeral=True)
+            # Send a detailed error message if anything fails
+            error_embed = discord.Embed(
+                title="❌ An Error Occurred",
+                description="Failed to set the bookmark channel. Here's the error information:",
+                color=discord.Color.red()
+            )
+            error_embed.add_field(name="Error Details", value=f"```\n{e}\n```", inline=False)
+            await interaction.followup.send(embed=error_embed, ephemeral=True)
 
     @app_commands.command(name="setnowplayingchannel", description="Set the channel for 'Now Playing' announcements")
     @app_commands.describe(channel="The text channel to use for announcements")
