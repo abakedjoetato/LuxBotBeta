@@ -273,6 +273,14 @@ class Database:
                 row = await cursor.fetchone()
                 return dict(row) if row else None
 
+    async def get_all_channel_settings(self) -> List[Dict[str, Any]]:
+        """Get all configured queue line channels."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM channel_settings ORDER BY queue_line") as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
     async def update_pinned_message(self, queue_line: str, pinned_message_id: int):
         """Update the pinned message ID for a queue line"""
         async with aiosqlite.connect(self.db_path) as db:
