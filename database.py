@@ -57,6 +57,8 @@ class Database:
                 await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_public_id ON submissions (public_id)")
             if 'note' not in columns:
                 await db.execute("ALTER TABLE submissions ADD COLUMN note TEXT")
+            if 'tiktok_name' not in columns:
+                await db.execute("ALTER TABLE submissions ADD COLUMN tiktok_name TEXT")
 
             # Populate public_id for existing rows
             async with db.execute("SELECT id FROM submissions WHERE public_id IS NULL") as cursor:
@@ -104,14 +106,14 @@ class Database:
 
     async def add_submission(self, user_id: int, username: str, artist_name: str,
                            song_name: str, link_or_file: str, queue_line: str,
-                           note: Optional[str] = None) -> str:
+                           note: Optional[str] = None, tiktok_name: Optional[str] = None) -> str:
         """Add a new submission to the database and return its public ID."""
         async with aiosqlite.connect(self.db_path) as db:
             public_id = await self._generate_unique_submission_id(db)
             await db.execute("""
-                INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note))
+                INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_name))
 
             await db.commit()
             return public_id
@@ -121,19 +123,6 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT * FROM submissions WHERE user_id = ? ORDER BY submission_time ASC", (user_id,)) as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
-
-    async def get_user_submissions_since(self, user_id: int, since: str) -> List[Dict[str, Any]]:
-        """Get all submissions for a specific user since a given datetime."""
-        query = """
-            SELECT * FROM submissions
-            WHERE user_id = ? AND submission_time >= ?
-            ORDER BY submission_time DESC
-        """
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(query, (user_id, since)) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
