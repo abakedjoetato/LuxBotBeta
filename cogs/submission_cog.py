@@ -203,17 +203,26 @@ class SubmissionButtonView(discord.ui.View):
         modal = SubmissionModal(self.bot)
         await interaction.response.send_modal(modal)
 
-    @discord.ui.button(label='Submit File', style=discord.ButtonStyle.secondary, emoji='📁', custom_id='submit_file_button')
+    @discord.ui.button(label='File Submission Instructions', style=discord.ButtonStyle.secondary, emoji='📁', custom_id='submit_file_button')
     async def submit_file_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle file submission button"""
+        instructions = (
+            "If you are submitting a file (MP3, M4A, FLAC - no WAV files):\n"
+            "1. Type `/submitfile` and hit send/enter.\n"
+            "2. In the message window, drag and drop or click to select your file.\n"
+            "3. Tap in the 'artist_name' field and enter the artist's name.\n"
+            "4. Tap in the 'song_name' field and enter the song's title.\n"
+            "5. You can also click '+2 more' to add a TikTok handle or a note.\n"
+            "6. Hit enter to submit.\n\n"
+            "A message will pop up asking if the submission is a skip.\n"
+            "**(DO NOT CLICK YES UNLESS YOU PLAN TO SEND A SKIP. VISIT the #🚨skip-the-line-info CHANNEL FOR MORE INFORMATION!!!)**"
+        )
         embed = discord.Embed(
-            title="📁 Use the `/submitfile` Command",
-            description="To submit a file, please use the `/submitfile` command directly in the chat.\n\n"
-                        "**Example:**\n"
-                        "`/submitfile` `file:<your_audio_file>` `artist_name:Your Artist` `song_name:Your Song`",
+            title="📁 How to Submit a File",
+            description=instructions,
             color=discord.Color.blue()
         )
-        embed.set_footer(text="This ensures your file is uploaded correctly with all required information.")
+        embed.set_footer(text="Follow these steps to ensure your file is submitted correctly.")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class SubmissionCog(commands.Cog):
@@ -305,8 +314,19 @@ class SubmissionCog(commands.Cog):
     async def setup_submission_buttons(self, interaction: discord.Interaction):
         """Setup submission buttons embed (admin only)"""
         embed = discord.Embed(title="🎵 Music Submission Portal", description="Choose how you'd like to submit your music:", color=discord.Color.blue())
-        embed.add_field(name="🔗 Submit Link", value="Submit via URL (YouTube, Spotify, etc.)", inline=False)
-        embed.add_field(name="📁 Submit File", value="Upload audio files directly (MP3, M4A, FLAC)", inline=False)
+        embed.add_field(
+            name="🔗 Submit Link",
+            value="To submit a link, click the 'Submit Link' button.\n"
+                  "Fill out the form fields and hit enter.\n"
+                  "A message will pop up asking if the submission is a skip.\n"
+                  "**(DO NOT CLICK YES UNLESS YOU PLAN TO SEND A SKIP. VISIT the #🚨skip-the-line-info CHANNEL FOR MORE INFORMATION!!!)**",
+            inline=False
+        )
+        embed.add_field(
+            name="📁 Submit File",
+            value="To submit a file, click the button below for detailed instructions.",
+            inline=False
+        )
         embed.set_footer(text="Click the buttons below to start submitting! | Luxurious Radio By Emerald Beats")
 
         view = SubmissionButtonView(self.bot)
