@@ -412,32 +412,6 @@ class Database:
                         settings[key] = None
         return settings
 
-    async def write_and_verify_setting(self, key: str, value: str) -> bool:
-        """
-        Writes a setting to the database and then immediately reads it back
-        in a separate connection to verify persistence.
-        Returns True if the write was successful and verified, False otherwise.
-        """
-        try:
-            # Step 1: Write the value
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
-                await db.commit()
-
-            # Step 2: Read the value back in a new connection
-            async with aiosqlite.connect(self.db_path) as db:
-                async with db.execute("SELECT value FROM bot_settings WHERE key = ?", (key,)) as cursor:
-                    row = await cursor.fetchone()
-                    if row and row[0] == value:
-                        return True
-                    else:
-                        # This case means the value was not written or read back correctly
-                        return False
-        except Exception as e:
-            # This case means an error occurred during the process
-            print(f"DATABASE: An exception occurred during write/verify: {e}")
-            return False
-
     async def close(self):
         """Close database connection"""
         pass
