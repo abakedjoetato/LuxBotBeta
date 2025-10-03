@@ -53,6 +53,9 @@ class NextActionView(discord.ui.View):
             else:
                 embed.add_field(name="File", value=submission['link_or_file'], inline=False)
 
+            if submission.get('tiktok_name'):
+                embed.add_field(name="TikTok", value=submission['tiktok_name'], inline=True)
+
             if submission.get('note'):
                 embed.add_field(name="Note", value=submission['note'], inline=False)
 
@@ -245,6 +248,9 @@ class AdminCog(commands.Cog):
             else:
                 embed.add_field(name="File", value=next_sub['link_or_file'], inline=False)
 
+            if next_sub.get('tiktok_name'):
+                embed.add_field(name="TikTok", value=next_sub['tiktok_name'], inline=True)
+
             if next_sub.get('note'):
                 embed.add_field(name="Note", value=next_sub['note'], inline=False)
             
@@ -383,6 +389,9 @@ class AdminCog(commands.Cog):
             else:
                 embed.add_field(name="File", value=submission['link_or_file'], inline=False)
 
+            if submission.get('tiktok_name'):
+                embed.add_field(name="TikTok", value=submission['tiktok_name'], inline=True)
+
             if submission.get('note'):
                 embed.add_field(name="Note", value=submission['note'], inline=False)
             
@@ -400,6 +409,24 @@ class AdminCog(commands.Cog):
             
         except Exception as e:
             await interaction.response.send_message(f"❌ Error bookmarking submission: {str(e)}", ephemeral=True)
+
+    @app_commands.command(name="selfheal", description="[ADMIN] Manually run the self-healing and cleaning routine for all queue channels.")
+    @is_admin()
+    async def self_heal(self, interaction: discord.Interaction):
+        """Forces the bot to re-initialize all queue views, cleaning up old messages and ensuring views are active."""
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        queue_view_cog = self.bot.get_cog('QueueViewCog')
+        if not queue_view_cog:
+            await interaction.followup.send("❌ Critical error: The `QueueViewCog` is not loaded.", ephemeral=True)
+            return
+
+        try:
+            await queue_view_cog.initialize_all_views()
+            await interaction.followup.send("✅ Self-healing routine completed successfully.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ An error occurred during the self-healing routine: {e}", ephemeral=True)
+
 
 async def setup(bot):
     """Setup function for the cog"""
