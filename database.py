@@ -387,6 +387,14 @@ class Database:
                         return None
         return None
 
+    async def get_all_channel_settings(self) -> List[Dict[str, Any]]:
+        """Get all configured queue line channels."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM channel_settings ORDER BY queue_line") as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
     async def get_all_bot_settings(self) -> Dict[str, Any]:
         """Get all settings from the bot_settings table."""
         settings = {}
