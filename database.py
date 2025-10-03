@@ -124,19 +124,6 @@ class Database:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
-    async def get_user_submissions_since(self, user_id: int, since: str) -> List[Dict[str, Any]]:
-        """Get all submissions for a specific user since a given datetime."""
-        query = """
-            SELECT * FROM submissions
-            WHERE user_id = ? AND submission_time >= ?
-            ORDER BY submission_time DESC
-        """
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(query, (user_id, since)) as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
-
     async def get_queue_submissions(self, queue_line: str) -> List[Dict[str, Any]]:
         """
         Get all submissions for a specific queue line.

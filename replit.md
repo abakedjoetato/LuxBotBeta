@@ -34,7 +34,7 @@ Preferred communication style: Simple, everyday language.
 ### Authentication and Authorization
 - **Discord Permission System**: Admin commands protected by `manage_guild` permission check
 - **Role-Based Access**: Administrative functions restricted to users with server management permissions
-- **User Isolation**: Users can only see their own submissions via `/myqueue` command
+- **User Isolation**: Users can only see their own submissions via `/mysubmissions` command
 
 ### Queue Management System
 - **Priority-Based Processing**: Four-tier priority system with weighted queue processing
