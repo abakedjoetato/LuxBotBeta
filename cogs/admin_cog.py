@@ -8,8 +8,6 @@ from discord import app_commands
 from database import QueueLine
 from typing import Optional
 from .checks import is_admin
-import random
-import string
 
 class NextActionView(discord.ui.View):
     def __init__(self, bot, submission_public_id: str):
@@ -55,9 +53,6 @@ class NextActionView(discord.ui.View):
             else:
                 embed.add_field(name="File", value=submission['link_or_file'], inline=False)
 
-            if submission.get('tiktok_name'):
-                embed.add_field(name="TikTok", value=submission['tiktok_name'], inline=True)
-
             if submission.get('note'):
                 embed.add_field(name="Note", value=submission['note'], inline=False)
 
@@ -101,35 +96,23 @@ class AdminCog(commands.Cog):
     ])
     @is_admin()
     async def set_line(self, interaction: discord.Interaction, line: str, channel: discord.TextChannel):
-        """Set the channel for a queue line with detailed feedback."""
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
+        """Set the channel for a queue line"""
         try:
-            # Step 1: Call the database function
-            await interaction.followup.send(f"⚙️ Accessing the database to set **{line}**...", ephemeral=True)
             await self.bot.db.set_channel_for_line(line, channel.id)
-
-            # Step 2: Update the queue display
-            await interaction.followup.send("🔄 Updating the queue display...", ephemeral=True)
             await self._update_queues(line)
             
-            # Step 3: Final confirmation
             embed = discord.Embed(
-                title="✅ Line Channel Set Successfully",
-                description=f"The **{line}** line has been set to {channel.mention}.",
+                title="✅ Line Channel Set",
+                description=f"**{line}** line is now set to {channel.mention}",
                 color=discord.Color.green()
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             
         except Exception as e:
-            # Send a detailed error message if anything fails
-            error_embed = discord.Embed(
-                title=f"❌ An Error Occurred While Setting '{line}'",
-                description="Failed to set the line channel. Here's the error information:",
-                color=discord.Color.red()
+            await interaction.response.send_message(
+                f"❌ Error setting line channel: {str(e)}", 
+                ephemeral=True
             )
-            error_embed.add_field(name="Error Details", value=f"```\n{e}\n```", inline=False)
-            await interaction.followup.send(embed=error_embed, ephemeral=True)
     
     @app_commands.command(name="move", description="Move a submission to a different queue line")
     @app_commands.describe(
@@ -262,9 +245,6 @@ class AdminCog(commands.Cog):
             else:
                 embed.add_field(name="File", value=next_sub['link_or_file'], inline=False)
 
-            if next_sub.get('tiktok_name'):
-                embed.add_field(name="TikTok", value=next_sub['tiktok_name'], inline=True)
-
             if next_sub.get('note'):
                 embed.add_field(name="Note", value=next_sub['note'], inline=False)
             
@@ -333,35 +313,18 @@ class AdminCog(commands.Cog):
     @app_commands.describe(channel="The text channel to use for bookmarks")
     @is_admin()
     async def set_bookmark_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        """Set the channel for bookmarked submissions with detailed feedback."""
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
+        """Set the channel for bookmarked submissions"""
         try:
-            # Step 1: Call the database function
-            await interaction.followup.send("⚙️ Accessing the database...", ephemeral=True)
             await self.bot.db.set_bookmark_channel(channel.id)
-
-            # Step 2: Update the local cache
-            await interaction.followup.send("📝 Updating live settings cache...", ephemeral=True)
             self.bot.settings_cache['bookmark_channel_id'] = channel.id
-
-            # Step 3: Final confirmation
             embed = discord.Embed(
-                title="✅ Bookmark Channel Set Successfully",
-                description=f"The bookmark channel has been set to {channel.mention}.",
+                title="✅ Bookmark Channel Set",
+                description=f"Bookmark channel is now set to {channel.mention}",
                 color=discord.Color.green()
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
-            # Send a detailed error message if anything fails
-            error_embed = discord.Embed(
-                title="❌ An Error Occurred",
-                description="Failed to set the bookmark channel. Here's the error information:",
-                color=discord.Color.red()
-            )
-            error_embed.add_field(name="Error Details", value=f"```\n{e}\n```", inline=False)
-            await interaction.followup.send(embed=error_embed, ephemeral=True)
+            await interaction.response.send_message(f"❌ Error setting bookmark channel: {str(e)}", ephemeral=True)
 
     @app_commands.command(name="setnowplayingchannel", description="Set the channel for 'Now Playing' announcements")
     @app_commands.describe(channel="The text channel to use for announcements")
@@ -420,9 +383,6 @@ class AdminCog(commands.Cog):
             else:
                 embed.add_field(name="File", value=submission['link_or_file'], inline=False)
 
-            if submission.get('tiktok_name'):
-                embed.add_field(name="TikTok", value=submission['tiktok_name'], inline=True)
-
             if submission.get('note'):
                 embed.add_field(name="Note", value=submission['note'], inline=False)
             
@@ -440,200 +400,6 @@ class AdminCog(commands.Cog):
             
         except Exception as e:
             await interaction.response.send_message(f"❌ Error bookmarking submission: {str(e)}", ephemeral=True)
-
-    @app_commands.command(name="selfheal", description="[ADMIN] Manually run the self-healing and cleaning routine for all queue channels.")
-    @is_admin()
-    async def self_heal(self, interaction: discord.Interaction):
-        """Forces the bot to re-initialize all queue views, cleaning up old messages and ensuring views are active."""
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
-        queue_view_cog = self.bot.get_cog('QueueViewCog')
-        if not queue_view_cog:
-            await interaction.followup.send("❌ Critical error: The `QueueViewCog` is not loaded.", ephemeral=True)
-            return
-
-        try:
-            await queue_view_cog.initialize_all_views()
-            await interaction.followup.send("✅ Self-healing routine completed successfully.", ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send(f"❌ An error occurred during the self-healing routine: {e}", ephemeral=True)
-
-    @app_commands.command(name="showsettings", description="[ADMIN] Display all current bot channel configurations.")
-    @is_admin()
-    async def show_settings(self, interaction: discord.Interaction):
-        """Displays all configured channels for queues and other features."""
-        await interaction.response.defer(ephemeral=True)
-
-        try:
-            # Fetch all settings
-            all_channel_settings = await self.bot.db.get_all_channel_settings()
-            bot_settings = await self.bot.db.get_all_bot_settings()
-
-            embed = discord.Embed(title="⚙️ Bot Channel Settings", color=discord.Color.blue())
-            embed.description = "Here are all the currently configured channels for the bot."
-
-            # Queue Channels
-            queue_lines_info = []
-            if all_channel_settings:
-                for setting in all_channel_settings:
-                    channel_id = setting.get('channel_id')
-                    channel_mention = f"<#{channel_id}>" if channel_id else "Not Set"
-                    queue_lines_info.append(f"**{setting['queue_line']}**: {channel_mention} `(ID: {channel_id})`")
-                embed.add_field(name="🎶 Queue Lines", value="\n".join(queue_lines_info), inline=False)
-            else:
-                embed.add_field(name="🎶 Queue Lines", value="No queue line channels have been set.", inline=False)
-
-            # Other Channels
-            other_channels_info = []
-            bookmark_id = bot_settings.get('bookmark_channel_id')
-            now_playing_id = bot_settings.get('now_playing_channel_id')
-            submission_channel_id = await self.bot.db.get_submission_channel()
-
-            bookmark_mention = f"<#{bookmark_id}> `(ID: {bookmark_id})`" if bookmark_id else "Not Set"
-            now_playing_mention = f"<#{now_playing_id}> `(ID: {now_playing_id})`" if now_playing_id else "Not Set"
-            submission_mention = f"<#{submission_channel_id}> `(ID: {submission_channel_id})`" if submission_channel_id else "Not Set"
-
-            other_channels_info.append(f"**Bookmark Channel**: {bookmark_mention}")
-            other_channels_info.append(f"**'Now Playing' Channel**: {now_playing_mention}")
-            other_channels_info.append(f"**Submission Channel**: {submission_mention}")
-
-            embed.add_field(name="📁 Other Channels", value="\n".join(other_channels_info), inline=False)
-
-            embed.set_footer(text="Use the respective /set... commands to change these settings.")
-
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
-        except Exception as e:
-            await interaction.followup.send(f"❌ An error occurred while fetching settings: {e}", ephemeral=True)
-
-    @app_commands.command(name="cleanqueues", description="[ADMIN] Remove old, unused queue line settings from the database.")
-    @is_admin()
-    async def clean_queues(self, interaction: discord.Interaction):
-        """Removes stale queue line settings that are no longer part of the bot's valid queues."""
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        try:
-            removed_count = await self.bot.db.clear_stale_queue_lines()
-            if removed_count > 0:
-                embed = discord.Embed(
-                    title="✅ Stale Queues Cleaned",
-                    description=f"Successfully removed {removed_count} old queue line setting(s) from the database.",
-                    color=discord.Color.green()
-                )
-            else:
-                embed = discord.Embed(
-                    title="👍 No Stale Queues Found",
-                    description="Your queue line settings are all up-to-date. No cleanup was needed.",
-                    color=discord.Color.blue()
-                )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send(f"❌ An error occurred during cleanup: {e}", ephemeral=True)
-
-    @app_commands.command(name="testdatabase", description="[ADMIN] Perform a definitive write/read test on the database.")
-    @is_admin()
-    async def test_database(self, interaction: discord.Interaction):
-        """Writes a random value and immediately tries to read it back to test persistence."""
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
-        # Generate a random key and value for the test
-        test_key = 'db_test_' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-        test_value = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-
-        await interaction.followup.send(f"🧪 Running database persistence test...\n- Key: `{test_key}`\n- Value: `{test_value}`", ephemeral=True)
-
-        try:
-            # Call the verification function
-            is_successful = await self.bot.db.write_and_verify_setting(test_key, test_value)
-
-            if is_successful:
-                embed = discord.Embed(
-                    title="✅ Database Test Passed",
-                    description="The database is working correctly. A random value was written and successfully read back from the file, confirming that changes are being saved.",
-                    color=discord.Color.green()
-                )
-            else:
-                embed = discord.Embed(
-                    title="❌ Database Test Failed",
-                    description=(
-                        "The database is **NOT** saving changes correctly. A random value was written, but it could not be read back from the file.\n\n"
-                        "**This is likely a file permissions issue.** Please ensure the bot has the necessary permissions to write to the `music_queue.db` file in its directory."
-                    ),
-                    color=discord.Color.red()
-                )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
-        except Exception as e:
-            error_embed = discord.Embed(
-                title="❌ An Error Occurred During Database Test",
-                description="A critical error happened while trying to test the database. Here's the error information:",
-                color=discord.Color.red()
-            )
-            error_embed.add_field(name="Error Details", value=f"```\n{e}\n```", inline=False)
-            await interaction.followup.send(embed=error_embed, ephemeral=True)
-
-    @app_commands.command(name="testcleanup", description="[ADMIN] Perform a definitive test of the queue cleanup function.")
-    @is_admin()
-    async def test_cleanup(self, interaction: discord.Interaction):
-        """
-        Shows queue settings before and after running the cleanup function
-        to definitively test if deletions are being persisted.
-        """
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
-        try:
-            # --- BEFORE ---
-            await interaction.followup.send("📋 Fetching queue settings **before** cleanup...", ephemeral=True)
-            before_settings = await self.bot.db.get_all_channel_settings()
-
-            before_embed = discord.Embed(
-                title="🔍 Queue Settings (Before Cleanup)",
-                color=discord.Color.light_grey()
-            )
-            if before_settings:
-                before_lines = [f"**{s['queue_line']}**: <#{s['channel_id']}>" for s in before_settings]
-                before_embed.description = "\n".join(before_lines)
-            else:
-                before_embed.description = "No queue settings found."
-            await interaction.followup.send(embed=before_embed, ephemeral=True)
-
-            # --- RUN CLEANUP ---
-            await interaction.followup.send("🗑️ Running the cleanup function...", ephemeral=True)
-            removed_count = await self.bot.db.clear_stale_queue_lines()
-            await interaction.followup.send(f"✅ Cleanup function finished. It reported removing **{removed_count}** stale line(s).", ephemeral=True)
-
-            # --- AFTER ---
-            await interaction.followup.send("📋 Fetching queue settings **after** cleanup...", ephemeral=True)
-            after_settings = await self.bot.db.get_all_channel_settings()
-
-            after_embed = discord.Embed(
-                title="✅ Queue Settings (After Cleanup)",
-                color=discord.Color.green()
-            )
-            if after_settings:
-                after_lines = [f"**{s['queue_line']}**: <#{s['channel_id']}>" for s in after_settings]
-                after_embed.description = "\n".join(after_lines)
-            else:
-                after_embed.description = "No queue settings found."
-
-            # --- FINAL RESULT ---
-            if len(before_settings) - removed_count == len(after_settings):
-                 after_embed.set_footer(text="✅ SUCCESS: The number of removed items matches the change in the database.")
-                 after_embed.color = discord.Color.green()
-            else:
-                 after_embed.set_footer(text="❌ FAILURE: The number of removed items does not match. Deletions are not being saved correctly.")
-                 after_embed.color = discord.Color.red()
-
-            await interaction.followup.send(embed=after_embed, ephemeral=True)
-
-        except Exception as e:
-            error_embed = discord.Embed(
-                title="❌ An Error Occurred During Cleanup Test",
-                description="A critical error happened while trying to test the cleanup. Here's the error:",
-                color=discord.Color.red()
-            )
-            error_embed.add_field(name="Error Details", value=f"```\n{e}\n```", inline=False)
-            await interaction.followup.send(embed=error_embed, ephemeral=True)
-
 
 async def setup(bot):
     """Setup function for the cog"""

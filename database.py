@@ -344,23 +344,6 @@ class Database:
                         return None
         return None
 
-    async def clear_stale_queue_lines(self) -> int:
-        """Removes queue lines from channel_settings that are no longer in the QueueLine enum. Returns the number of lines removed."""
-        async with aiosqlite.connect(self.db_path) as db:
-            valid_queue_lines = [ql.value for ql in QueueLine]
-
-            placeholders = ', '.join('?' for _ in valid_queue_lines)
-
-            # Use a transaction to ensure atomicity
-            async with db.execute("BEGIN"):
-                delete_query = f"DELETE FROM channel_settings WHERE queue_line NOT IN ({placeholders})"
-                cursor = await db.execute(delete_query, valid_queue_lines)
-                rows_deleted = cursor.rowcount
-
-            await db.commit()
-            print(f"DATABASE: Removed {rows_deleted} stale queue lines.")
-            return rows_deleted
-
     async def get_submission_by_id(self, public_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific submission by public ID"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -370,7 +353,7 @@ class Database:
                 return dict(row) if row else None
 
     async def set_bookmark_channel(self, channel_id: int):
-        """Set the bookmark channel. Raises an exception on failure."""
+        """Set the bookmark channel."""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bookmark_channel_id', ?)", (str(channel_id),))
             await db.commit()
@@ -386,14 +369,6 @@ class Database:
                     except (ValueError, TypeError):
                         return None
         return None
-
-    async def get_all_channel_settings(self) -> List[Dict[str, Any]]:
-        """Get all configured queue line channels."""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM channel_settings ORDER BY queue_line") as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
 
     async def get_all_bot_settings(self) -> Dict[str, Any]:
         """Get all settings from the bot_settings table."""
@@ -411,32 +386,6 @@ class Database:
                     else:
                         settings[key] = None
         return settings
-
-    async def write_and_verify_setting(self, key: str, value: str) -> bool:
-        """
-        Writes a setting to the database and then immediately reads it back
-        in a separate connection to verify persistence.
-        Returns True if the write was successful and verified, False otherwise.
-        """
-        try:
-            # Step 1: Write the value
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
-                await db.commit()
-
-            # Step 2: Read the value back in a new connection
-            async with aiosqlite.connect(self.db_path) as db:
-                async with db.execute("SELECT value FROM bot_settings WHERE key = ?", (key,)) as cursor:
-                    row = await cursor.fetchone()
-                    if row and row[0] == value:
-                        return True
-                    else:
-                        # This case means the value was not written or read back correctly
-                        return False
-        except Exception as e:
-            # This case means an error occurred during the process
-            print(f"DATABASE: An exception occurred during write/verify: {e}")
-            return False
 
     async def close(self):
         """Close database connection"""

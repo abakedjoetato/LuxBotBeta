@@ -10,14 +10,6 @@ from typing import Optional
 from database import QueueLine
 from .checks import is_admin
 
-# List of common cloud storage domains to check for public link reminders.
-CLOUD_STORAGE_DOMAINS = [
-    "drive.google.com", "dropbox.com", "onedrive.live.com", "1drv.ms",
-    "icloud.com", "box.com", "pcloud.com", "mega.nz", "mega.io", "sync.com",
-    "icedrive.net", "koofr.net", "koofr.eu", "terabox.com", "mediafire.com",
-    "s3.amazonaws.com", "degoo.com", "disk.yandex.", "tresorit.com", "nordlocker.com"
-]
-
 class SkipConfirmationView(discord.ui.View):
     """A view to ask the user if the submission is a skip."""
     def __init__(self, bot, submission_data: dict, timeout=180):
@@ -65,8 +57,7 @@ class SkipConfirmationView(discord.ui.View):
                 song_name=self.submission_data['song_name'],
                 link_or_file=self.submission_data['link_or_file'],
                 queue_line=queue_line,
-                note=self.submission_data.get('note'),
-                tiktok_name=self.submission_data.get('tiktok_name')
+                note=self.submission_data.get('note')
             )
 
             embed = discord.Embed(
@@ -77,21 +68,9 @@ class SkipConfirmationView(discord.ui.View):
             embed.add_field(name="Artist", value=self.submission_data['artist_name'], inline=True)
             embed.add_field(name="Song", value=self.submission_data['song_name'], inline=True)
             embed.add_field(name="Submission ID", value=f"#{public_id}", inline=False)
-            embed.set_footer(text="Use /mysubmissions to see your submissions | Luxurious Radio By Emerald Beats")
+            embed.set_footer(text="Use /myqueue to see your submissions | Luxurious Radio By Emerald Beats")
 
             await interaction.response.send_message(embed=embed, ephemeral=True)
-
-            # Check for cloud storage link and send reminder
-            link_value = self.submission_data.get('link_or_file', '')
-            if any(domain in link_value.lower() for domain in CLOUD_STORAGE_DOMAINS):
-                reminder_embed = discord.Embed(
-                    title="🔗 Link Sharing Reminder",
-                    description="It looks like you submitted a link from a cloud storage service. "
-                                "Please ensure your file is publicly accessible so that anyone with the link can view it. "
-                                "If it's not, the host won't be able to play your submission.",
-                    color=discord.Color.orange()
-                )
-                await interaction.followup.send(embed=reminder_embed, ephemeral=True)
 
             # Update queue display
             if hasattr(self.bot, 'get_cog') and self.bot.get_cog('QueueCog'):
@@ -145,13 +124,6 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
         max_length=500
     )
 
-    tiktok_name = discord.ui.TextInput(
-        label='TikTok Username (Optional)',
-        placeholder='Enter your TikTok username...',
-        required=False,
-        max_length=100
-    )
-
     note = discord.ui.TextInput(
         label='Note (Optional)',
         placeholder='Anything to add for the host?',
@@ -181,7 +153,6 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
             'artist_name': str(self.artist_name.value).strip(),
             'song_name': str(self.song_name.value).strip(),
             'link_or_file': link_value,
-            'tiktok_name': str(self.tiktok_name.value).strip() if self.tiktok_name.value else None,
             'note': str(self.note.value).strip() if self.note.value else None
         }
 
@@ -240,10 +211,9 @@ class SubmissionCog(commands.Cog):
         file="Upload your audio file (MP3, M4A, FLAC)",
         artist_name="Name of the artist",
         song_name="Title of the song",
-        tiktok_name="Optional TikTok username",
         note="Optional note for the host"
     )
-    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str, tiktok_name: Optional[str] = None, note: Optional[str] = None):
+    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str, note: Optional[str] = None):
         """Submit an MP3 file for review"""
         valid_extensions = ('.mp3', '.m4a', '.flac')
         if file.filename.lower().endswith('.wav'):
@@ -270,7 +240,6 @@ class SubmissionCog(commands.Cog):
             'artist_name': artist_name.strip(),
             'song_name': song_name.strip(),
             'link_or_file': file.url,
-            'tiktok_name': tiktok_name.strip() if tiktok_name else None,
             'note': note.strip() if note else None
         }
 
@@ -279,17 +248,17 @@ class SubmissionCog(commands.Cog):
         view.message = await interaction.original_response()
 
 
-    @app_commands.command(name="mysubmissions", description="View your submissions in all queues")
-    async def my_submissions(self, interaction: discord.Interaction):
+    @app_commands.command(name="myqueue", description="View your submissions in all queues")
+    async def my_queue(self, interaction: discord.Interaction):
         """Show user's submissions across all lines"""
         submissions = await self.bot.db.get_user_submissions(interaction.user.id)
 
         if not submissions:
-            embed = discord.Embed(title="Your Submissions", description="You don't have any active submissions.", color=discord.Color.blue())
+            embed = discord.Embed(title="Your Queue", description="You don't have any active submissions.", color=discord.Color.blue())
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        embed = discord.Embed(title="Your Submissions", color=discord.Color.blue())
+        embed = discord.Embed(title="Your Queue Submissions", color=discord.Color.blue())
 
         description_lines = []
         for sub in submissions:

@@ -6,7 +6,7 @@ A TikTok-style music review queue system built with Discord.py v2.x featuring sl
 
 ### User Features
 - **Submit Music**: Use `/submit` to open an interactive form for music submissions
-- **View Queue**: Use `/mysubmissions` to see all your active submissions across queue lines
+- **View Queue**: Use `/myqueue` to see all your active submissions across queue lines
 - **Help**: Use `/help` to see available commands and queue information
 
 ### Queue System
@@ -96,7 +96,7 @@ The bot will automatically:
 
 ### User Commands
 - `/submit` - Open submission form (Artist, Song, Link/File)
-- `/mysubmissions` - View your submissions across all lines
+- `/myqueue` - View your submissions across all lines
 - `/help` - Show help information
 
 ### Admin Commands

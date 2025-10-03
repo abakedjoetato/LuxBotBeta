@@ -123,7 +123,7 @@ class QueueCog(commands.Cog):
             value=(
                 "**/submit** - Submit music link for review (opens form)\n"
                 "**/submitfile** - Submit MP3/audio file for review\n"
-                "**/mysubmissions** - View your active submissions\n"
+                "**/myqueue** - View your active submissions\n"
                 "**/help** - Show this help message"
             ),
             inline=False
