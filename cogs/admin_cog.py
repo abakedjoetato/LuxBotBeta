@@ -571,6 +571,69 @@ class AdminCog(commands.Cog):
             error_embed.add_field(name="Error Details", value=f"```\n{e}\n```", inline=False)
             await interaction.followup.send(embed=error_embed, ephemeral=True)
 
+    @app_commands.command(name="testcleanup", description="[ADMIN] Perform a definitive test of the queue cleanup function.")
+    @is_admin()
+    async def test_cleanup(self, interaction: discord.Interaction):
+        """
+        Shows queue settings before and after running the cleanup function
+        to definitively test if deletions are being persisted.
+        """
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        try:
+            # --- BEFORE ---
+            await interaction.followup.send("📋 Fetching queue settings **before** cleanup...", ephemeral=True)
+            before_settings = await self.bot.db.get_all_channel_settings()
+
+            before_embed = discord.Embed(
+                title="🔍 Queue Settings (Before Cleanup)",
+                color=discord.Color.light_grey()
+            )
+            if before_settings:
+                before_lines = [f"**{s['queue_line']}**: <#{s['channel_id']}>" for s in before_settings]
+                before_embed.description = "\n".join(before_lines)
+            else:
+                before_embed.description = "No queue settings found."
+            await interaction.followup.send(embed=before_embed, ephemeral=True)
+
+            # --- RUN CLEANUP ---
+            await interaction.followup.send("🗑️ Running the cleanup function...", ephemeral=True)
+            removed_count = await self.bot.db.clear_stale_queue_lines()
+            await interaction.followup.send(f"✅ Cleanup function finished. It reported removing **{removed_count}** stale line(s).", ephemeral=True)
+
+            # --- AFTER ---
+            await interaction.followup.send("📋 Fetching queue settings **after** cleanup...", ephemeral=True)
+            after_settings = await self.bot.db.get_all_channel_settings()
+
+            after_embed = discord.Embed(
+                title="✅ Queue Settings (After Cleanup)",
+                color=discord.Color.green()
+            )
+            if after_settings:
+                after_lines = [f"**{s['queue_line']}**: <#{s['channel_id']}>" for s in after_settings]
+                after_embed.description = "\n".join(after_lines)
+            else:
+                after_embed.description = "No queue settings found."
+
+            # --- FINAL RESULT ---
+            if len(before_settings) - removed_count == len(after_settings):
+                 after_embed.set_footer(text="✅ SUCCESS: The number of removed items matches the change in the database.")
+                 after_embed.color = discord.Color.green()
+            else:
+                 after_embed.set_footer(text="❌ FAILURE: The number of removed items does not match. Deletions are not being saved correctly.")
+                 after_embed.color = discord.Color.red()
+
+            await interaction.followup.send(embed=after_embed, ephemeral=True)
+
+        except Exception as e:
+            error_embed = discord.Embed(
+                title="❌ An Error Occurred During Cleanup Test",
+                description="A critical error happened while trying to test the cleanup. Here's the error:",
+                color=discord.Color.red()
+            )
+            error_embed.add_field(name="Error Details", value=f"```\n{e}\n```", inline=False)
+            await interaction.followup.send(embed=error_embed, ephemeral=True)
+
 
 async def setup(bot):
     """Setup function for the cog"""
