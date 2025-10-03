@@ -475,6 +475,29 @@ class AdminCog(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"❌ An error occurred while fetching settings: {e}", ephemeral=True)
 
+    @app_commands.command(name="cleanqueues", description="[ADMIN] Remove old, unused queue line settings from the database.")
+    @is_admin()
+    async def clean_queues(self, interaction: discord.Interaction):
+        """Removes stale queue line settings that are no longer part of the bot's valid queues."""
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            removed_count = await self.bot.db.clear_stale_queue_lines()
+            if removed_count > 0:
+                embed = discord.Embed(
+                    title="✅ Stale Queues Cleaned",
+                    description=f"Successfully removed {removed_count} old queue line setting(s) from the database.",
+                    color=discord.Color.green()
+                )
+            else:
+                embed = discord.Embed(
+                    title="👍 No Stale Queues Found",
+                    description="Your queue line settings are all up-to-date. No cleanup was needed.",
+                    color=discord.Color.blue()
+                )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ An error occurred during cleanup: {e}", ephemeral=True)
+
 
 async def setup(bot):
     """Setup function for the cog"""

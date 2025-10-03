@@ -57,8 +57,6 @@ class Database:
                 await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_public_id ON submissions (public_id)")
             if 'note' not in columns:
                 await db.execute("ALTER TABLE submissions ADD COLUMN note TEXT")
-            if 'tiktok_name' not in columns:
-                await db.execute("ALTER TABLE submissions ADD COLUMN tiktok_name TEXT")
 
             # Populate public_id for existing rows
             async with db.execute("SELECT id FROM submissions WHERE public_id IS NULL") as cursor:
@@ -106,14 +104,14 @@ class Database:
 
     async def add_submission(self, user_id: int, username: str, artist_name: str,
                            song_name: str, link_or_file: str, queue_line: str,
-                           note: Optional[str] = None, tiktok_name: Optional[str] = None) -> str:
+                           note: Optional[str] = None) -> str:
         """Add a new submission to the database and return its public ID."""
         async with aiosqlite.connect(self.db_path) as db:
             public_id = await self._generate_unique_submission_id(db)
             await db.execute("""
-                INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_name))
+                INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note))
 
             await db.commit()
             return public_id
@@ -273,14 +271,6 @@ class Database:
                 row = await cursor.fetchone()
                 return dict(row) if row else None
 
-    async def get_all_channel_settings(self) -> List[Dict[str, Any]]:
-        """Get all configured queue line channels."""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM channel_settings ORDER BY queue_line") as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
-
     async def update_pinned_message(self, queue_line: str, pinned_message_id: int):
         """Update the pinned message ID for a queue line"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -354,6 +344,23 @@ class Database:
                         return None
         return None
 
+    async def clear_stale_queue_lines(self) -> int:
+        """Removes queue lines from channel_settings that are no longer in the QueueLine enum. Returns the number of lines removed."""
+        async with aiosqlite.connect(self.db_path) as db:
+            valid_queue_lines = [ql.value for ql in QueueLine]
+
+            placeholders = ', '.join('?' for _ in valid_queue_lines)
+
+            # Use a transaction to ensure atomicity
+            async with db.execute("BEGIN"):
+                delete_query = f"DELETE FROM channel_settings WHERE queue_line NOT IN ({placeholders})"
+                cursor = await db.execute(delete_query, valid_queue_lines)
+                rows_deleted = cursor.rowcount
+
+            await db.commit()
+            print(f"DATABASE: Removed {rows_deleted} stale queue lines.")
+            return rows_deleted
+
     async def get_submission_by_id(self, public_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific submission by public ID"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -364,9 +371,16 @@ class Database:
 
     async def set_bookmark_channel(self, channel_id: int):
         """Set the bookmark channel."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bookmark_channel_id', ?)", (str(channel_id),))
-            await db.commit()
+        print(f"DATABASE: Attempting to set bookmark channel to ID: {channel_id}")
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                print("DATABASE: Connection successful.")
+                await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bookmark_channel_id', ?)", (str(channel_id),))
+                print(f"DATABASE: Executed INSERT OR REPLACE for bookmark_channel_id with value {channel_id}.")
+                await db.commit()
+                print("DATABASE: Commit successful for set_bookmark_channel.")
+        except Exception as e:
+            print(f"DATABASE: ERROR in set_bookmark_channel: {e}")
 
     async def get_bookmark_channel(self) -> Optional[int]:
         """Get the bookmark channel ID"""
