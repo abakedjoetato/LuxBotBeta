@@ -427,6 +427,54 @@ class AdminCog(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"❌ An error occurred during the self-healing routine: {e}", ephemeral=True)
 
+    @app_commands.command(name="showsettings", description="[ADMIN] Display all current bot channel configurations.")
+    @is_admin()
+    async def show_settings(self, interaction: discord.Interaction):
+        """Displays all configured channels for queues and other features."""
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            # Fetch all settings
+            all_channel_settings = await self.bot.db.get_all_channel_settings()
+            bot_settings = await self.bot.db.get_all_bot_settings()
+
+            embed = discord.Embed(title="⚙️ Bot Channel Settings", color=discord.Color.blue())
+            embed.description = "Here are all the currently configured channels for the bot."
+
+            # Queue Channels
+            queue_lines_info = []
+            if all_channel_settings:
+                for setting in all_channel_settings:
+                    channel_id = setting.get('channel_id')
+                    channel_mention = f"<#{channel_id}>" if channel_id else "Not Set"
+                    queue_lines_info.append(f"**{setting['queue_line']}**: {channel_mention} `(ID: {channel_id})`")
+                embed.add_field(name="🎶 Queue Lines", value="\n".join(queue_lines_info), inline=False)
+            else:
+                embed.add_field(name="🎶 Queue Lines", value="No queue line channels have been set.", inline=False)
+
+            # Other Channels
+            other_channels_info = []
+            bookmark_id = bot_settings.get('bookmark_channel_id')
+            now_playing_id = bot_settings.get('now_playing_channel_id')
+            submission_channel_id = await self.bot.db.get_submission_channel()
+
+            bookmark_mention = f"<#{bookmark_id}> `(ID: {bookmark_id})`" if bookmark_id else "Not Set"
+            now_playing_mention = f"<#{now_playing_id}> `(ID: {now_playing_id})`" if now_playing_id else "Not Set"
+            submission_mention = f"<#{submission_channel_id}> `(ID: {submission_channel_id})`" if submission_channel_id else "Not Set"
+
+            other_channels_info.append(f"**Bookmark Channel**: {bookmark_mention}")
+            other_channels_info.append(f"**'Now Playing' Channel**: {now_playing_mention}")
+            other_channels_info.append(f"**Submission Channel**: {submission_mention}")
+
+            embed.add_field(name="📁 Other Channels", value="\n".join(other_channels_info), inline=False)
+
+            embed.set_footer(text="Use the respective /set... commands to change these settings.")
+
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ An error occurred while fetching settings: {e}", ephemeral=True)
+
 
 async def setup(bot):
     """Setup function for the cog"""
