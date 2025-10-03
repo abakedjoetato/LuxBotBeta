@@ -8,6 +8,8 @@ from discord import app_commands
 from database import QueueLine
 from typing import Optional
 from .checks import is_admin
+import random
+import string
 
 class NextActionView(discord.ui.View):
     def __init__(self, bot, submission_public_id: str):
@@ -526,6 +528,48 @@ class AdminCog(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"❌ An error occurred during cleanup: {e}", ephemeral=True)
+
+    @app_commands.command(name="testdatabase", description="[ADMIN] Perform a definitive write/read test on the database.")
+    @is_admin()
+    async def test_database(self, interaction: discord.Interaction):
+        """Writes a random value and immediately tries to read it back to test persistence."""
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        # Generate a random key and value for the test
+        test_key = 'db_test_' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        test_value = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
+
+        await interaction.followup.send(f"🧪 Running database persistence test...\n- Key: `{test_key}`\n- Value: `{test_value}`", ephemeral=True)
+
+        try:
+            # Call the verification function
+            is_successful = await self.bot.db.write_and_verify_setting(test_key, test_value)
+
+            if is_successful:
+                embed = discord.Embed(
+                    title="✅ Database Test Passed",
+                    description="The database is working correctly. A random value was written and successfully read back from the file, confirming that changes are being saved.",
+                    color=discord.Color.green()
+                )
+            else:
+                embed = discord.Embed(
+                    title="❌ Database Test Failed",
+                    description=(
+                        "The database is **NOT** saving changes correctly. A random value was written, but it could not be read back from the file.\n\n"
+                        "**This is likely a file permissions issue.** Please ensure the bot has the necessary permissions to write to the `music_queue.db` file in its directory."
+                    ),
+                    color=discord.Color.red()
+                )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+        except Exception as e:
+            error_embed = discord.Embed(
+                title="❌ An Error Occurred During Database Test",
+                description="A critical error happened while trying to test the database. Here's the error information:",
+                color=discord.Color.red()
+            )
+            error_embed.add_field(name="Error Details", value=f"```\n{e}\n```", inline=False)
+            await interaction.followup.send(embed=error_embed, ephemeral=True)
 
 
 async def setup(bot):
