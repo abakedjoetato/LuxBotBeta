@@ -306,6 +306,9 @@ class SubmissionCog(commands.Cog):
         """Setup submission buttons embed (admin only)"""
         embed = discord.Embed(title="🎵 Music Submission Portal", description="Please follow the instructions for the submission type you are using.\n", color=discord.Color.blue())
 
+        # Add a blank field for spacing
+        embed.add_field(name="\u200b", value="\u200b", inline=False)
+        
         link_instructions = (
             "1. Click the **'Submit Link'** button below.\n"
             "2. Fill out the form fields for artist, song, and link.\n"
