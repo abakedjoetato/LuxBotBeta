@@ -71,9 +71,15 @@ class PaginatedQueueView(discord.ui.View):
                     except (ValueError, TypeError):
                         pass # Keep timestamp_str empty if parsing fails
 
+                tiktok_str = ""
+                if sub.get('tiktok_username'):
+                    # Escape underscores in the username to prevent unintended markdown italics
+                    escaped_tiktok_user = sub['tiktok_username'].replace('_', r'\_')
+                    tiktok_str = f" (TikTok: *{escaped_tiktok_user}*)"
+
                 description_lines.append(
                     f"**{i}.** `#{sub['public_id']}`: **{sub['artist_name']} – {sub['song_name']}** "
-                    f"by *{sub['username']}*{timestamp_str}{link_text}"
+                    f"by *{sub['username']}*{tiktok_str}{timestamp_str}{link_text}"
                 )
             embed.description = "\n".join(description_lines)
         

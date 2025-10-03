@@ -66,7 +66,7 @@ class SkipConfirmationView(discord.ui.View):
                 link_or_file=self.submission_data['link_or_file'],
                 queue_line=queue_line,
                 note=self.submission_data.get('note'),
-                tiktok_name=self.submission_data.get('tiktok_name')
+                tiktok_username=self.submission_data.get('tiktok_username')
             )
 
             embed = discord.Embed(
@@ -145,7 +145,7 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
         max_length=500
     )
 
-    tiktok_name = discord.ui.TextInput(
+    tiktok_username = discord.ui.TextInput(
         label='TikTok Username (Optional)',
         placeholder='Enter your TikTok username...',
         required=False,
@@ -181,7 +181,7 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
             'artist_name': str(self.artist_name.value).strip(),
             'song_name': str(self.song_name.value).strip(),
             'link_or_file': link_value,
-            'tiktok_name': str(self.tiktok_name.value).strip() if self.tiktok_name.value else None,
+            'tiktok_username': str(self.tiktok_username.value).strip() if self.tiktok_username.value else None,
             'note': str(self.note.value).strip() if self.note.value else None
         }
 
@@ -240,10 +240,10 @@ class SubmissionCog(commands.Cog):
         file="Upload your audio file (MP3, M4A, FLAC)",
         artist_name="Name of the artist",
         song_name="Title of the song",
-        tiktok_name="Optional TikTok username",
+        tiktok_username="Optional TikTok username",
         note="Optional note for the host"
     )
-    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str, tiktok_name: Optional[str] = None, note: Optional[str] = None):
+    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str, tiktok_username: Optional[str] = None, note: Optional[str] = None):
         """Submit an MP3 file for review"""
         valid_extensions = ('.mp3', '.m4a', '.flac')
         if file.filename.lower().endswith('.wav'):
@@ -270,7 +270,7 @@ class SubmissionCog(commands.Cog):
             'artist_name': artist_name.strip(),
             'song_name': song_name.strip(),
             'link_or_file': file.url,
-            'tiktok_name': tiktok_name.strip() if tiktok_name else None,
+            'tiktok_username': tiktok_username.strip() if tiktok_username else None,
             'note': note.strip() if note else None
         }
 

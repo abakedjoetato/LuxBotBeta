@@ -43,7 +43,8 @@ class Database:
                     submission_time DATETIME DEFAULT CURRENT_TIMESTAMP,
                     position INTEGER DEFAULT 0,
                     played_time DATETIME,
-                    note TEXT
+                    note TEXT,
+                    tiktok_username TEXT
                 )
             """)
 
@@ -57,6 +58,8 @@ class Database:
                 await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_public_id ON submissions (public_id)")
             if 'note' not in columns:
                 await db.execute("ALTER TABLE submissions ADD COLUMN note TEXT")
+            if 'tiktok_username' not in columns:
+                await db.execute("ALTER TABLE submissions ADD COLUMN tiktok_username TEXT")
 
             # Populate public_id for existing rows
             async with db.execute("SELECT id FROM submissions WHERE public_id IS NULL") as cursor:
@@ -104,14 +107,14 @@ class Database:
 
     async def add_submission(self, user_id: int, username: str, artist_name: str,
                            song_name: str, link_or_file: str, queue_line: str,
-                           note: Optional[str] = None) -> str:
+                           note: Optional[str] = None, tiktok_username: Optional[str] = None) -> str:
         """Add a new submission to the database and return its public ID."""
         async with aiosqlite.connect(self.db_path) as db:
             public_id = await self._generate_unique_submission_id(db)
             await db.execute("""
-                INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note))
+                INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_username)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_username))
 
             await db.commit()
             return public_id

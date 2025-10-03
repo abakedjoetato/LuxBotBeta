@@ -55,8 +55,8 @@ class NextActionView(discord.ui.View):
             else:
                 embed.add_field(name="File", value=submission['link_or_file'], inline=False)
 
-            if submission.get('tiktok_name'):
-                embed.add_field(name="TikTok", value=submission['tiktok_name'], inline=True)
+            if submission.get('tiktok_username'):
+                embed.add_field(name="TikTok", value=submission['tiktok_username'], inline=True)
 
             if submission.get('note'):
                 embed.add_field(name="Note", value=submission['note'], inline=False)
@@ -262,8 +262,8 @@ class AdminCog(commands.Cog):
             else:
                 embed.add_field(name="File", value=next_sub['link_or_file'], inline=False)
 
-            if next_sub.get('tiktok_name'):
-                embed.add_field(name="TikTok", value=next_sub['tiktok_name'], inline=True)
+            if next_sub.get('tiktok_username'):
+                embed.add_field(name="TikTok", value=next_sub['tiktok_username'], inline=True)
 
             if next_sub.get('note'):
                 embed.add_field(name="Note", value=next_sub['note'], inline=False)
@@ -420,8 +420,8 @@ class AdminCog(commands.Cog):
             else:
                 embed.add_field(name="File", value=submission['link_or_file'], inline=False)
 
-            if submission.get('tiktok_name'):
-                embed.add_field(name="TikTok", value=submission['tiktok_name'], inline=True)
+            if submission.get('tiktok_username'):
+                embed.add_field(name="TikTok", value=submission['tiktok_username'], inline=True)
 
             if submission.get('note'):
                 embed.add_field(name="Note", value=submission['note'], inline=False)
