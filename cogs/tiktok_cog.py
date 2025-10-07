@@ -6,7 +6,7 @@ from discord import app_commands
 from typing import Optional, Dict, Any
 from TikTokLive import TikTokLiveClient
 from TikTokLive.events import CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, ShareEvent
-from TikTokLive.client.errors import UserNotFoundError, LiveNotFoundError
+from TikTokLive.client.errors import UserNotFoundError, UserOfflineError
 
 # --- Constants ---
 # Map gift coin values to the queue they unlock.
@@ -117,7 +117,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         except UserNotFoundError:
             await edit_status("❌ Connection Failed", f"**Reason:** TikTok user `@{unique_id}` was not found.", discord.Color.red())
             await self._cleanup_connection()
-        except LiveNotFoundError:
+        except UserOfflineError:
             await edit_status("❌ Connection Failed", f"**Reason:** User `@{unique_id}` is not currently LIVE.", discord.Color.red())
             await self._cleanup_connection()
         except Exception as e:
