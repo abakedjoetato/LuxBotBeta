@@ -18,6 +18,55 @@ CLOUD_STORAGE_DOMAINS = [
     "s3.amazonaws.com", "degoo.com", "disk.yandex.", "tresorit.com", "nordlocker.com"
 ]
 
+class TikTokHandleModal(discord.ui.Modal, title='Add Your TikTok Handle'):
+    """Modal for asking user for their TikTok handle."""
+
+    tiktok_username = discord.ui.TextInput(
+        label='TikTok @Handle',
+        placeholder='Enter your @handle for engagement rewards...',
+        required=True,
+        max_length=100
+    )
+
+    def __init__(self, bot, view, is_skip: bool):
+        super().__init__()
+        self.bot = bot
+        self.view = view
+        self.is_skip = is_skip
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Defer to allow time for processing and sending follow-up messages.
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        handle = self.tiktok_username.value.strip()
+
+        # --- Validation ---
+        if not handle:
+            await interaction.followup.send("❌ TikTok username cannot be empty.", ephemeral=True)
+            return
+        if ' ' in handle:
+            await interaction.followup.send("❌ TikTok username cannot contain spaces.", ephemeral=True)
+            return
+        if len(handle) > 100:
+            await interaction.followup.send("❌ TikTok username is too long (max 100 characters).", ephemeral=True)
+            return
+
+        # Remove '@' if present
+        if handle.startswith('@'):
+            handle = handle[1:]
+
+        try:
+            await self.bot.db.set_tiktok_handle(interaction.user.id, handle)
+            await self.bot.db.update_user_submissions_tiktok_handle(interaction.user.id, handle)
+            await interaction.followup.send(f"✅ Your TikTok handle has been set to **{handle}**.", ephemeral=True)
+
+            # Now that the handle is set, finalize the original submission.
+            # We pass the new interaction from the modal submission to the finalizer.
+            await self.view._finalize_submission(interaction, self.is_skip)
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ An error occurred while setting your handle: {str(e)}", ephemeral=True)
+
+
 class SkipConfirmationView(discord.ui.View):
     """A view to ask the user if the submission is a skip."""
     def __init__(self, bot, submission_data: dict, timeout=180):
@@ -26,13 +75,11 @@ class SkipConfirmationView(discord.ui.View):
         self.submission_data = submission_data
         self.message: Optional[discord.Message] = None
 
-    async def handle_submission(self, interaction: discord.Interaction, is_skip: bool):
-        """Helper to handle the submission logic."""
-        # Disable buttons to prevent multiple clicks
-        for item in self.children:
-            item.disabled = True
-        if self.message:
-            await self.message.edit(view=self)
+    async def _finalize_submission(self, interaction: discord.Interaction, is_skip: bool):
+        """The final step of the submission process, after all checks are complete."""
+        # Defer if we haven't already. This handles calls from both the modal and the direct path.
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True, thinking=True)
 
         queue_line = QueueLine.PENDING_SKIPS.value if is_skip else QueueLine.FREE.value
         line_name = "Pending Skips" if is_skip else "Free"
@@ -40,25 +87,16 @@ class SkipConfirmationView(discord.ui.View):
         if not is_skip:
             # Check if free line is open
             if not await self.bot.db.is_free_line_open():
-                await interaction.response.send_message(
-                    "❌ Submissions to the Free line are currently closed.",
-                    ephemeral=True
-                )
+                await interaction.followup.send("❌ Submissions to the Free line are currently closed.", ephemeral=True)
                 return
 
             # Check if user already has a submission in the Free line
-            existing_count = await self.bot.db.get_user_submission_count_in_line(
-                interaction.user.id, QueueLine.FREE.value
-            )
+            existing_count = await self.bot.db.get_user_submission_count_in_line(interaction.user.id, QueueLine.FREE.value)
             if existing_count > 0:
-                await interaction.response.send_message(
-                    "❌ You already have a submission in the Free line.",
-                    ephemeral=True
-                )
+                await interaction.followup.send("❌ You already have a submission in the Free line.", ephemeral=True)
                 return
 
         try:
-            # The tiktok_username is now automatically fetched by the database layer
             public_id = await self.bot.db.add_submission(
                 user_id=interaction.user.id,
                 username=interaction.user.display_name,
@@ -79,9 +117,8 @@ class SkipConfirmationView(discord.ui.View):
             embed.add_field(name="Submission ID", value=f"#{public_id}", inline=False)
             embed.set_footer(text="Use /mysubmissions to see your submissions | Luxurious Radio By Emerald Beats")
 
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
-            # Check for cloud storage link and send reminder
             link_value = self.submission_data.get('link_or_file', '')
             if any(domain in link_value.lower() for domain in CLOUD_STORAGE_DOMAINS):
                 reminder_embed = discord.Embed(
@@ -93,15 +130,27 @@ class SkipConfirmationView(discord.ui.View):
                 )
                 await interaction.followup.send(embed=reminder_embed, ephemeral=True)
 
-            # Update queue display
             if hasattr(self.bot, 'get_cog') and self.bot.get_cog('QueueCog'):
                 await self.bot.get_cog('QueueCog').update_queue_display(queue_line)
 
         except Exception as e:
-            await interaction.response.send_message(
-                f"❌ An error occurred: {str(e)}",
-                ephemeral=True
-            )
+            await interaction.followup.send(f"❌ An error occurred: {str(e)}", ephemeral=True)
+
+    async def handle_submission(self, interaction: discord.Interaction, is_skip: bool):
+        """Checks for a TikTok handle and either finalizes the submission or shows the handle modal."""
+        for item in self.children:
+            item.disabled = True
+        if self.message:
+            await self.message.edit(view=self)
+
+        handle = await self.bot.db.get_tiktok_handle(interaction.user.id)
+        if not handle:
+            # No handle, show the modal to ask for it.
+            modal = TikTokHandleModal(self.bot, self, is_skip)
+            await interaction.response.send_modal(modal)
+        else:
+            # Handle exists, finalize the submission directly.
+            await self._finalize_submission(interaction, is_skip)
 
     @discord.ui.button(label="Yes, it's a Skip", style=discord.ButtonStyle.success)
     async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
