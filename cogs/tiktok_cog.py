@@ -25,10 +25,12 @@ INTERACTION_POINTS = {
     "like": 1,
 }
 
-class TikTokCog(commands.Cog):
+@app_commands.guild_only()
+@app_commands.default_permissions(administrator=True)
+class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for managing TikTok Live integration."):
     """Handles TikTok Live integration and engagement rewards."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot: commands.Bot = bot
         logging.info("--- TikTokCog IS BEING INITIALIZED ---")
         self.bot.tiktok_client: Optional[TikTokLiveClient] = None
@@ -36,6 +38,7 @@ class TikTokCog(commands.Cog):
         self._is_connected = asyncio.Event()
         self._connection_task: Optional[asyncio.Task] = None
         self._connect_interaction: Optional[discord.Interaction] = None
+        super().__init__()
 
     def cog_unload(self):
         """Clean up resources when the cog is unloaded."""
@@ -53,10 +56,14 @@ class TikTokCog(commands.Cog):
         """Check if the TikTok client is connected."""
         return self._is_connected.is_set()
 
-    # --- Admin Command Group ---
-    tiktok = app_commands.Group(name="tiktok", description="Commands for managing TikTok Live integration.")
+    def _create_status_embed(self, title: str, description: str, color: discord.Color) -> discord.Embed:
+        """Helper function to create a standardized status embed."""
+        embed = discord.Embed(title=title, description=description, color=color)
+        embed.set_footer(text="TikTok Live Integration | Luxurious Radio")
+        embed.timestamp = discord.utils.utcnow()
+        return embed
 
-    @tiktok.command(name="status", description="Check the status of the TikTok LIVE connection.")
+    @app_commands.command(name="status", description="Check the status of the TikTok LIVE connection.")
     async def status(self, interaction: discord.Interaction):
         """Checks and reports the current TikTok Live connection status."""
         if self.is_connected and self.bot.tiktok_client and hasattr(self.bot.tiktok_client, 'unique_id'):
@@ -65,14 +72,7 @@ class TikTokCog(commands.Cog):
             status_message = "🔴 Disconnected."
         await interaction.response.send_message(status_message, ephemeral=True)
 
-    def _create_status_embed(self, title: str, description: str, color: discord.Color) -> discord.Embed:
-        """Helper function to create a standardized status embed."""
-        embed = discord.Embed(title=title, description=description, color=color)
-        embed.set_footer(text="TikTok Live Integration | Luxurious Radio")
-        embed.timestamp = discord.utils.utcnow()
-        return embed
-
-    @tiktok.command(name="connect", description="Connect to a TikTok LIVE stream.")
+    @app_commands.command(name="connect", description="Connect to a TikTok LIVE stream.")
     @app_commands.describe(unique_id="The @unique_id of the TikTok user to connect to.")
     async def connect(self, interaction: discord.Interaction, unique_id: str):
         """Connects the bot to a specified TikTok Live stream with real-time status updates."""
@@ -126,7 +126,7 @@ class TikTokCog(commands.Cog):
             await edit_status("❌ Connection Failed", f"**Reason:** An unexpected error occurred.\n```\n{e}\n```", discord.Color.red())
             await self._cleanup_connection()
 
-    @tiktok.command(name="disconnect", description="Disconnect from the TikTok LIVE stream.")
+    @app_commands.command(name="disconnect", description="Disconnect from the TikTok LIVE stream.")
     async def disconnect(self, interaction: discord.Interaction):
         if not self.is_connected:
             await interaction.response.send_message("Not currently connected to any stream.", ephemeral=True)
