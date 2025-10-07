@@ -30,7 +30,6 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
     """Handles TikTok Live integration and engagement rewards."""
 
     def __init__(self, bot: commands.Bot):
-        print("--- TRACE: TikTokCog __init__ called ---")
         self.bot: commands.Bot = bot
         logging.info("--- TikTokCog IS BEING INITIALIZED ---")
         self.bot.tiktok_client: Optional[TikTokLiveClient] = None
