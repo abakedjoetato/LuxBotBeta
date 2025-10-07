@@ -108,10 +108,10 @@ class MusicQueueBot(commands.Bot):
             # Register persistent views
             self.add_view(PaginatedQueueView(self, queue_line="dummy")) # Pass dummy args
 
-            # Initialize all queue displays
+            # Initialize all queue displays in a background task to not block startup
             queue_view_cog = self.get_cog('QueueViewCog')
             if queue_view_cog:
-                await queue_view_cog.initialize_all_views()
+                asyncio.create_task(queue_view_cog.initialize_all_views())
 
             self.initial_startup = False
 
