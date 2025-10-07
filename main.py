@@ -56,20 +56,21 @@ class MusicQueueBot(commands.Bot):
         await self.db.initialize()
 
         # Load cogs
-        try:
-            # Load view cogs first as other cogs may depend on them
-            await self.load_extension('cogs.queue_view')
-
-            # Load functional cogs
-            await self.load_extension('cogs.submission_cog')
-            await self.load_extension('cogs.queue_cog')
-            await self.load_extension('cogs.admin_cog')
-            await self.load_extension('cogs.moderation_cog')
-            await self.load_extension('cogs.tiktok_cog')
-
-            logging.info("All cogs loaded successfully")
-        except Exception as e:
-            logging.error(f"Failed to load cogs: {e}")
+        # Load cogs one by one for better error tracking
+        cogs_to_load = [
+            'cogs.queue_view',
+            'cogs.submission_cog',
+            'cogs.queue_cog',
+            'cogs.admin_cog',
+            'cogs.moderation_cog',
+            'cogs.tiktok_cog'
+        ]
+        for cog in cogs_to_load:
+            try:
+                await self.load_extension(cog)
+                logging.info(f"Successfully loaded cog: {cog}")
+            except Exception as e:
+                logging.error(f"Failed to load cog {cog}: {e}", exc_info=True)
 
         # Sync slash commands
         try:

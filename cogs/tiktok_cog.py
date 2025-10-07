@@ -34,8 +34,9 @@ class TikTokCog(commands.Cog):
 
     def __init__(self, bot):
         self.bot: commands.Bot = bot
-        self.bot.tiktok_client: Optional[TikTokLiveClient] = None
-        self.bot.currently_playing_submission_id: Optional[str] = None
+        # These attributes are initialized in main.py
+        # self.bot.tiktok_client: Optional[TikTokLiveClient] = None
+        # self.bot.currently_playing_submission_id: Optional[str] = None
         self.viewer_scores: Dict[str, float] = {}  # {tiktok_username: minutes_watched}
         self._is_connected = asyncio.Event()
         self._connection_task: Optional[asyncio.Task] = None
@@ -72,14 +73,14 @@ class TikTokCog(commands.Cog):
              await self.bot.tiktok_client.stop()
 
         try:
-            self.bot.tiktok_client = TikTokLiveClient(unique_id=f"@{unique_id}")
+            clean_unique_id = unique_id.strip().lstrip('@')
+            self.bot.tiktok_client = TikTokLiveClient(unique_id=f"@{clean_unique_id}")
             self._add_listeners()
             self._connection_task = asyncio.create_task(self.bot.tiktok_client.start())
 
-            # Wait for the connection to be established
             await asyncio.wait_for(self._is_connected.wait(), timeout=15.0)
 
-            await interaction.followup.send(f"✅ Successfully connected to `@{unique_id}`'s LIVE stream. Engagement tracking is active.", ephemeral=True)
+            await interaction.followup.send(f"✅ Successfully connected to `@{clean_unique_id}`'s LIVE stream. Engagement tracking is active.", ephemeral=True)
 
         except asyncio.TimeoutError:
             await interaction.followup.send("Connection timed out. Please check the `unique_id` and ensure the user is LIVE.", ephemeral=True)
@@ -117,8 +118,10 @@ class TikTokCog(commands.Cog):
             self._connection_task.cancel()
         self.bot.tiktok_client = None
         self._is_connected.clear()
-        self.watch_time_scorekeeper.stop()
-        self.realtime_resort_task.stop()
+        if self.watch_time_scorekeeper.is_running():
+            self.watch_time_scorekeeper.cancel()
+        if self.realtime_resort_task.is_running():
+            self.realtime_resort_task.cancel()
         self.viewer_scores.clear()
         self.bot.currently_playing_submission_id = None
         print("TIKTOK: Connection cleaned up.")
@@ -128,7 +131,6 @@ class TikTokCog(commands.Cog):
         if not self.bot.tiktok_client:
             return
 
-        # Add listeners using decorators
         self.bot.tiktok_client.add_listener("connect", self.on_connect)
         self.bot.tiktok_client.add_listener("disconnect", self.on_disconnect)
         self.bot.tiktok_client.add_listener("like", self.on_like)
@@ -141,7 +143,6 @@ class TikTokCog(commands.Cog):
         """Handles the connection event from the TikTok client."""
         print(f"TIKTOK: Connected to {self.bot.tiktok_client.room_id}")
         self._is_connected.set()
-        # Start background tasks on successful connection
         if not self.watch_time_scorekeeper.is_running():
             self.watch_time_scorekeeper.start()
         if not self.realtime_resort_task.is_running():
@@ -178,11 +179,9 @@ class TikTokCog(commands.Cog):
 
     async def on_gift(self, event: GiftEvent):
         """Handles gift events and rewards users by moving them to priority queues."""
-        # We only care about gifts that are not part of a streak
         if event.gift.streakable and not event.gift.streaking:
             return
 
-        # Find the highest tier the user's gift qualifies for
         target_line: Optional[QueueLine] = None
         for coins, line in sorted(GIFT_TIER_MAP.items(), key=lambda item: item[0], reverse=True):
             if event.gift.diamond_count >= coins:
@@ -190,18 +189,15 @@ class TikTokCog(commands.Cog):
                 break
 
         if not target_line:
-            return # Gift value was too low for any tier
+            return
 
-        # Find the user's submission
         submission = await self.bot.db.find_active_submission_by_tiktok_user(event.user.unique_id)
         if not submission:
-            return # User has no active, eligible submission
+            return
 
-        # Move the submission
         original_line = await self.bot.db.move_submission(submission['public_id'], target_line.value)
-        if original_line:
+        if original_line and original_line != target_line.value:
             print(f"TIKTOK: Rewarded {event.user.unique_id} with a move to {target_line.value} for a {event.gift.diamond_count}-coin gift.")
-            # Update the queue views
             queue_view_cog = self.bot.get_cog('QueueViewCog')
             if queue_view_cog:
                 await queue_view_cog.create_or_update_queue_view(original_line)
@@ -215,7 +211,6 @@ class TikTokCog(commands.Cog):
             return
 
         try:
-            # The TikTokLive library automatically keeps the user list updated.
             for user in self.bot.tiktok_client.viewers:
                 self.viewer_scores[user.unique_id] = self.viewer_scores.get(user.unique_id, 0) + 1
         except Exception as e:
@@ -228,10 +223,8 @@ class TikTokCog(commands.Cog):
             return
 
         try:
-            # Update scores in the database
             await self.bot.db.update_free_line_scores(self.viewer_scores)
 
-            # Refresh the queue display
             queue_view_cog = self.bot.get_cog('QueueViewCog')
             if queue_view_cog:
                 await queue_view_cog.create_or_update_queue_view(QueueLine.FREE.value)
