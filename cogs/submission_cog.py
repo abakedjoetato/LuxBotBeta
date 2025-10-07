@@ -58,6 +58,7 @@ class SkipConfirmationView(discord.ui.View):
                 return
 
         try:
+            # The tiktok_username is now automatically fetched by the database layer
             public_id = await self.bot.db.add_submission(
                 user_id=interaction.user.id,
                 username=interaction.user.display_name,
@@ -65,8 +66,7 @@ class SkipConfirmationView(discord.ui.View):
                 song_name=self.submission_data['song_name'],
                 link_or_file=self.submission_data['link_or_file'],
                 queue_line=queue_line,
-                note=self.submission_data.get('note'),
-                tiktok_username=self.submission_data.get('tiktok_username')
+                note=self.submission_data.get('note')
             )
 
             embed = discord.Embed(
@@ -145,13 +145,6 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
         max_length=500
     )
 
-    tiktok_username = discord.ui.TextInput(
-        label='TikTok Username (Optional)',
-        placeholder='Enter your TikTok username...',
-        required=False,
-        max_length=100
-    )
-
     note = discord.ui.TextInput(
         label='Note (Optional)',
         placeholder='Anything to add for the host?',
@@ -181,7 +174,6 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
             'artist_name': str(self.artist_name.value).strip(),
             'song_name': str(self.song_name.value).strip(),
             'link_or_file': link_value,
-            'tiktok_username': str(self.tiktok_username.value).strip() if self.tiktok_username.value else None,
             'note': str(self.note.value).strip() if self.note.value else None
         }
 
@@ -240,10 +232,9 @@ class SubmissionCog(commands.Cog):
         file="Upload your audio file (MP3, M4A, FLAC)",
         artist_name="Name of the artist",
         song_name="Title of the song",
-        tiktok_username="Optional TikTok username",
         note="Optional note for the host"
     )
-    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str, tiktok_username: Optional[str] = None, note: Optional[str] = None):
+    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str, note: Optional[str] = None):
         """Submit an MP3 file for review"""
         valid_extensions = ('.mp3', '.m4a', '.flac')
         if file.filename.lower().endswith('.wav'):
@@ -270,7 +261,6 @@ class SubmissionCog(commands.Cog):
             'artist_name': artist_name.strip(),
             'song_name': song_name.strip(),
             'link_or_file': file.url,
-            'tiktok_username': tiktok_username.strip() if tiktok_username else None,
             'note': note.strip() if note else None
         }
 
@@ -299,6 +289,47 @@ class SubmissionCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="updatetiktokhandle", description="Set or update your TikTok username for all your submissions.")
+    @app_commands.describe(
+        tiktok_username="Your TikTok username (e.g., @myusername)"
+    )
+    async def update_tiktok_handle(self, interaction: discord.Interaction, tiktok_username: str):
+        """Allows a user to set their TikTok handle, which is then applied to all their submissions."""
+        await interaction.response.defer(ephemeral=True)
+
+        # Basic validation
+        handle = tiktok_username.strip()
+        if not handle:
+            await interaction.followup.send("❌ TikTok username cannot be empty.", ephemeral=True)
+            return
+        if ' ' in handle:
+            await interaction.followup.send("❌ TikTok username cannot contain spaces.", ephemeral=True)
+            return
+        if len(handle) > 100:
+            await interaction.followup.send("❌ TikTok username is too long (max 100 characters).", ephemeral=True)
+            return
+
+        # Remove '@' if present, as it's not needed for the library
+        if handle.startswith('@'):
+            handle = handle[1:]
+
+        try:
+            # Update the central handle record
+            await self.bot.db.set_tiktok_handle(interaction.user.id, handle)
+
+            # Update all existing, unplayed submissions for that user
+            await self.bot.db.update_user_submissions_tiktok_handle(interaction.user.id, handle)
+
+            embed = discord.Embed(
+                title="✅ TikTok Handle Updated",
+                description=f"Your TikTok username has been set to **{handle}**.\nThis will be applied to all your past and future submissions.",
+                color=discord.Color.green()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ An error occurred while updating your handle: {str(e)}", ephemeral=True)
+
 
     @app_commands.command(name="setupsubmissionbuttons", description="[ADMIN] Setup submission buttons in current channel")
     @is_admin()
@@ -325,7 +356,7 @@ class SubmissionCog(commands.Cog):
             "1. Type `/submitfile` in the chat and press **Enter**.\n"
             "2. Drag & drop or select your audio file (MP3, M4A, FLAC - no WAVs).\n"
             "3. Fill in the `artist_name` and `song_name` fields.\n"
-            "4. You can click `+2 more` to add a TikTok handle or a note.\n"
+            "4. You can click `+1 more` to add a note for the host.\n"
             "5. Press **Enter** to submit.\n"
             "6. A message will ask if it's a skip. **Do not click 'Yes' unless you plan to send a skip.** "
             "Visit the <#1402750608678846474> channel for more information."
