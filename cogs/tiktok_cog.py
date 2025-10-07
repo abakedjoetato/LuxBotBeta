@@ -61,37 +61,69 @@ class TikTokCog(commands.Cog):
             status_message = "🔴 Disconnected."
         await interaction.response.send_message(status_message, ephemeral=True)
 
+    def _create_status_embed(self, title: str, description: str, color: discord.Color) -> discord.Embed:
+        """Helper function to create a standardized status embed."""
+        embed = discord.Embed(title=title, description=description, color=color)
+        embed.set_footer(text="TikTok Live Integration | Luxurious Radio")
+        embed.timestamp = discord.utils.utcnow()
+        return embed
+
     @tiktok.command(name="connect", description="Connect to a TikTok LIVE stream.")
     @app_commands.describe(unique_id="The @unique_id of the TikTok user to connect to.")
     async def connect(self, interaction: discord.Interaction, unique_id: str):
-        """Connects the bot to a specified TikTok Live stream in the background."""
+        """Connects the bot to a specified TikTok Live stream with real-time status updates."""
         if self.is_connected:
             await interaction.response.send_message("Already connected to a TikTok LIVE. Please disconnect first.", ephemeral=True)
             return
 
-        # Respond immediately to the user
-        await interaction.response.send_message(f"🚀 Attempting to connect to `@{unique_id}`'s LIVE stream in the background. Use `/tiktok status` to check the connection.", ephemeral=True)
+        # Send the initial "Initializing" message
+        embed = self._create_status_embed("⏳ Connecting...", "Status: Initializing...", discord.Color.light_grey())
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-        # Start the connection process in a background task
-        asyncio.create_task(self._background_connect(unique_id))
+        # Start the connection process in a background task, passing the interaction object
+        asyncio.create_task(self._background_connect(interaction, unique_id))
 
-    async def _background_connect(self, unique_id: str):
-        """The actual connection logic that runs in the background."""
-        # Defer the import until it's actually used
-        from TikTokLive import TikTokLiveClient
-        from TikTokLive.types.events import CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, ShareEvent
+    async def _background_connect(self, interaction: discord.Interaction, unique_id: str):
+        """The actual connection logic that runs in the background, with status updates."""
 
-        if self.bot.tiktok_client:
-            await self.bot.tiktok_client.stop()
+        async def edit_status(title, description, color):
+            """Nested helper to edit the original message."""
+            await interaction.edit_original_response(embed=self._create_status_embed(title, description, color))
 
         try:
+            # Step 1: Import Library
+            await edit_status("⏳ Connecting...", "Status: Importing TikTok Library...", discord.Color.light_grey())
+            from TikTokLive import TikTokLiveClient
+            from TikTokLive.types.events import CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, ShareEvent
+            from TikTokLive.types.errors import UserNotFoundError, LiveNotFoundError
+
+            if self.bot.tiktok_client:
+                await self.bot.tiktok_client.stop()
+
+            # Step 2: Create Client
             clean_unique_id = unique_id.strip().lstrip('@')
+            await edit_status("⏳ Connecting...", f"Status: Creating TikTok Client for `@{clean_unique_id}`...", discord.Color.blue())
+
+            # Pass the interaction object to the on_connect handler via a wrapper
+            async def on_connect_wrapper(event: ConnectEvent): await self.on_connect(event, interaction)
+            async def on_disconnect_wrapper(event: DisconnectEvent): await self.on_disconnect(event)
+
             self.bot.tiktok_client = TikTokLiveClient(unique_id=f"@{clean_unique_id}")
-            self._add_listeners(CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, ShareEvent)
+            self._add_listeners(CommentEvent, on_connect_wrapper, on_disconnect_wrapper, GiftEvent, LikeEvent, ShareEvent)
+
+            # Step 3: Connect
+            await edit_status("⏳ Connecting...", "Status: Awaiting connection to TikTok...", discord.Color.orange())
             await self.bot.tiktok_client.start()
 
+        except UserNotFoundError:
+            await edit_status("❌ Connection Failed", f"**Reason:** TikTok user `@{unique_id}` was not found.", discord.Color.red())
+            await self._cleanup_connection()
+        except LiveNotFoundError:
+            await edit_status("❌ Connection Failed", f"**Reason:** User `@{unique_id}` is not currently LIVE.", discord.Color.red())
+            await self._cleanup_connection()
         except Exception as e:
             logging.error(f"Failed to connect to TikTok in background: {e}", exc_info=True)
+            await edit_status("❌ Connection Failed", f"**Reason:** An unexpected error occurred.\n```\n{e}\n```", discord.Color.red())
             await self._cleanup_connection()
 
     @tiktok.command(name="disconnect", description="Disconnect from the TikTok LIVE stream.")
@@ -123,18 +155,18 @@ class TikTokCog(commands.Cog):
         self.viewer_scores.clear()
         logging.info("TIKTOK: Connection cleaned up.")
 
-    def _add_listeners(self, CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, ShareEvent):
+    def _add_listeners(self, CommentEvent, on_connect_wrapper, on_disconnect_wrapper, GiftEvent, LikeEvent, ShareEvent):
         """Adds all necessary event listeners to the TikTok client."""
         if not self.bot.tiktok_client:
             return
 
-        async def on_connect_wrapper(event: ConnectEvent): await self.on_connect(event)
-        async def on_disconnect_wrapper(event: DisconnectEvent): await self.on_disconnect(event)
+        # Define wrappers for other events
         async def on_like_wrapper(event: LikeEvent): await self.on_like(event)
         async def on_comment_wrapper(event: CommentEvent): await self.on_comment(event)
         async def on_share_wrapper(event: ShareEvent): await self.on_share(event)
         async def on_gift_wrapper(event: GiftEvent): await self.on_gift(event)
 
+        # Add all listeners
         self.bot.tiktok_client.add_listener("connect", on_connect_wrapper)
         self.bot.tiktok_client.add_listener("disconnect", on_disconnect_wrapper)
         self.bot.tiktok_client.add_listener("like", on_like_wrapper)
@@ -143,9 +175,20 @@ class TikTokCog(commands.Cog):
         self.bot.tiktok_client.add_listener("gift", on_gift_wrapper)
 
     # --- TikTok Event Handlers ---
-    async def on_connect(self, _):
+    async def on_connect(self, _, interaction: discord.Interaction):
+        """Handles the connection event from the TikTok client."""
         logging.info(f"TIKTOK: Connected to room ID {self.bot.tiktok_client.room_id}")
         self._is_connected.set()
+
+        # Final status update on the original message
+        await interaction.edit_original_response(
+            embed=self._create_status_embed(
+                "✅ Connected!",
+                f"Successfully connected to **{self.bot.tiktok_client.unique_id}**'s LIVE stream.",
+                discord.Color.green()
+            )
+        )
+
         if not self.watch_time_scorekeeper.is_running(): self.watch_time_scorekeeper.start()
         if not self.realtime_resort_task.is_running(): self.realtime_resort_task.start()
 
