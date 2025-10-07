@@ -402,7 +402,7 @@ class SubmissionCog(commands.Cog):
         embed.add_field(name="\u200b", value="\u200b", inline=False)
 
         file_instructions = (
-            "1. Type `/submitfile` in the chat and press **Enter**.\n"
+            "1. Type / followed by submitfile in the chat and press Enter.\n"
             "2. Drag & drop or select your audio file (MP3, M4A, FLAC - no WAVs).\n"
             "3. Fill in the `artist_name` and `song_name` fields.\n"
             "4. Press **Enter** to submit.\n"
