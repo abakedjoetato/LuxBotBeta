@@ -55,6 +55,7 @@ class MusicQueueBot(commands.Bot):
         await self.db.initialize()
 
         # Load cogs
+        print("--- TRACE: Starting to load cogs ---")
         # Load cogs one by one for better error tracking
         cogs_to_load = [
             'cogs.queue_view',
@@ -70,8 +71,10 @@ class MusicQueueBot(commands.Bot):
                 logging.info(f"Successfully loaded cog: {cog}")
             except Exception as e:
                 logging.error(f"Failed to load cog {cog}: {e}", exc_info=True)
+                print(f"!!! FAILED TO LOAD COG {cog}: {e} !!!")
 
         # Sync slash commands
+        print("--- TRACE: Cogs loaded, starting command sync ---")
         try:
             guild_id = os.getenv('GUILD_ID')
             if guild_id:
@@ -86,6 +89,7 @@ class MusicQueueBot(commands.Bot):
                 logging.info(f"Synced {len(synced)} command(s) globally")
         except Exception as e:
             logging.error(f"Failed to sync commands: {e}")
+            print(f"!!! FAILED TO SYNC COMMANDS: {e} !!!")
 
     async def on_ready(self):
         """Called when bot is ready"""
