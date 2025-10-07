@@ -60,6 +60,12 @@ class Database:
                 await db.execute("ALTER TABLE submissions ADD COLUMN note TEXT")
             if 'tiktok_username' not in columns:
                 await db.execute("ALTER TABLE submissions ADD COLUMN tiktok_username TEXT")
+            if 'live_watch_score' not in columns:
+                await db.execute("ALTER TABLE submissions ADD COLUMN live_watch_score REAL DEFAULT 0")
+            if 'live_interaction_score' not in columns:
+                await db.execute("ALTER TABLE submissions ADD COLUMN live_interaction_score REAL DEFAULT 0")
+            if 'total_score' not in columns:
+                await db.execute("ALTER TABLE submissions ADD COLUMN total_score REAL DEFAULT 0")
 
             # Populate public_id for existing rows
             async with db.execute("SELECT id FROM submissions WHERE public_id IS NULL") as cursor:
@@ -130,10 +136,14 @@ class Database:
     async def get_queue_submissions(self, queue_line: str) -> List[Dict[str, Any]]:
         """
         Get all submissions for a specific queue line.
-        Sorts "Calls Played" by played time (most recent first), and others by submission time (oldest first).
+        Sorts "Calls Played" by played time (most recent first).
+        Sorts "Free" line by total_score (desc) and then submission_time (asc).
+        Sorts other lines by submission_time (oldest first).
         """
         if queue_line == QueueLine.CALLS_PLAYED.value:
             query = "SELECT * FROM submissions WHERE queue_line = ? AND played_time IS NOT NULL ORDER BY played_time DESC"
+        elif queue_line == QueueLine.FREE.value:
+            query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY total_score DESC, submission_time ASC"
         else:
             query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC"
 
@@ -146,11 +156,15 @@ class Database:
     async def get_queue_submissions_paginated(self, queue_line: str, page: int, per_page: int) -> List[Dict[str, Any]]:
         """
         Get submissions for a specific queue line with pagination.
-        Sorts "Calls Played" by played time (most recent first), and others by submission time (oldest first).
+        Sorts "Calls Played" by played time (most recent first).
+        Sorts "Free" line by total_score (desc) and then submission_time (asc).
+        Sorts other lines by submission_time (oldest first).
         """
         offset = (page - 1) * per_page
         if queue_line == QueueLine.CALLS_PLAYED.value:
             query = "SELECT * FROM submissions WHERE queue_line = ? AND played_time IS NOT NULL ORDER BY played_time DESC LIMIT ? OFFSET ?"
+        elif queue_line == QueueLine.FREE.value:
+            query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY total_score DESC, submission_time ASC LIMIT ? OFFSET ?"
         else:
             query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT ? OFFSET ?"
 
@@ -223,7 +237,13 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             for queue_line in priority_order:
-                async with db.execute("SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT 1", (queue_line,)) as cursor:
+                # Special handling for the Free line to use the new scoring system
+                if queue_line == QueueLine.FREE.value:
+                    query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY total_score DESC, submission_time ASC LIMIT 1"
+                else:
+                    query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT 1"
+
+                async with db.execute(query, (queue_line,)) as cursor:
                     row = await cursor.fetchone()
                     if row:
                         return dict(row)
@@ -243,7 +263,13 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             for queue_line in priority_order:
-                async with db.execute("SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT 1", (queue_line,)) as cursor:
+                # Special handling for the Free line to use the new scoring system
+                if queue_line == QueueLine.FREE.value:
+                    query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY total_score DESC, submission_time ASC LIMIT 1"
+                else:
+                    query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT 1"
+
+                async with db.execute(query, (queue_line,)) as cursor:
                     row = await cursor.fetchone()
 
                 if row:
@@ -414,6 +440,66 @@ class Database:
                     else:
                         settings[key] = None
         return settings
+
+    async def update_free_line_scores(self, viewer_scores: Dict[str, float]):
+        """
+        Recalculates and updates the watch time and total scores for all submissions in the Free line.
+        viewer_scores: A dictionary mapping tiktok_username to total watch time in minutes.
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            # Use a transaction for bulk updates
+            async with db.execute("BEGIN"):
+                # Get all free line submissions
+                async with db.execute("SELECT id, tiktok_username, live_interaction_score FROM submissions WHERE queue_line = ?", (QueueLine.FREE.value,)) as cursor:
+                    free_line_subs = await cursor.fetchall()
+
+                # Calculate and update scores for each submission
+                for sub in free_line_subs:
+                    watch_time = viewer_scores.get(sub['tiktok_username'], 0)
+                    live_watch_score = watch_time * 0.5  # 0.5 points per minute watched
+                    total_score = live_watch_score + sub['live_interaction_score']
+
+                    await db.execute(
+                        "UPDATE submissions SET live_watch_score = ?, total_score = ? WHERE id = ?",
+                        (live_watch_score, total_score, sub['id'])
+                    )
+            await db.commit()
+
+    async def add_interaction_score(self, public_id: str, points: float):
+        """Adds points to a submission's interaction score and updates the total score."""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Atomically update the scores
+            await db.execute(
+                """
+                UPDATE submissions
+                SET
+                    live_interaction_score = live_interaction_score + ?,
+                    total_score = total_score + ?
+                WHERE public_id = ?
+                """,
+                (points, points, public_id)
+            )
+            await db.commit()
+
+    async def find_active_submission_by_tiktok_user(self, tiktok_username: str) -> Optional[Dict[str, Any]]:
+        """
+        Finds the most recent submission from a TikTok user that is eligible for a reward.
+        An eligible submission is one that is not already in a priority queue or played.
+        """
+        eligible_lines = [QueueLine.FREE.value, QueueLine.PENDING_SKIPS.value]
+        placeholders = ', '.join('?' for _ in eligible_lines)
+        query = f"""
+            SELECT * FROM submissions
+            WHERE tiktok_username = ? AND queue_line IN ({placeholders})
+            ORDER BY submission_time DESC
+            LIMIT 1
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(query, (tiktok_username, *eligible_lines)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
 
     async def close(self):
         """Close database connection"""

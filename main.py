@@ -46,6 +46,9 @@ class MusicQueueBot(commands.Bot):
         self.db = Database()
         self.initial_startup = True
         self.settings_cache = {}
+        # TikTok Integration attributes
+        self.tiktok_client = None
+        self.currently_playing_submission_id: Optional[str] = None
 
     async def setup_hook(self):
         """Setup hook called when bot is starting"""
@@ -62,6 +65,7 @@ class MusicQueueBot(commands.Bot):
             await self.load_extension('cogs.queue_cog')
             await self.load_extension('cogs.admin_cog')
             await self.load_extension('cogs.moderation_cog')
+            await self.load_extension('cogs.tiktok_cog')
 
             logging.info("All cogs loaded successfully")
         except Exception as e:

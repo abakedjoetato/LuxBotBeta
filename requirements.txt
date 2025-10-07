@@ -1,6 +1,4 @@
 discord.py>=2.3.2
 aiosqlite>=0.19.0
 python-dotenv>=1.0.0
-aiosqlite>=0.19.0
-discord.py>=2.3.2
-python-dotenv>=1.0.0
+TikTokLive>=2.2.1
