@@ -96,13 +96,33 @@ class MusicQueueBot(commands.Bot):
 
     async def on_ready(self):
         """Called when bot is ready"""
-        # --- Find debug channel and flush logs ---
+        # --- Find or create debug channel and flush logs ---
         if not self.debug_channel:
             for guild in self.guilds:
                 channel = discord.utils.get(guild.text_channels, name="bot-debug")
                 if channel:
                     self.debug_channel = channel
+                    await self._send_trace(f"Found debug channel in guild '{guild.name}'.")
                     break
+
+            if not self.debug_channel and self.guilds:
+                target_guild = self.guilds[0]
+                await self._send_trace(f"Debug channel not found. Attempting to create one in '{target_guild.name}'.")
+                try:
+                    overwrites = {
+                        target_guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                        target_guild.me: discord.PermissionOverwrite(read_messages=True)
+                    }
+                    self.debug_channel = await target_guild.create_text_channel(
+                        'bot-debug',
+                        overwrites=overwrites,
+                        reason="For bot startup diagnostics"
+                    )
+                    await self._send_trace("Successfully created 'bot-debug' channel.")
+                except discord.Forbidden:
+                    await self._send_trace("Lacking 'Manage Channels' permission to create debug channel.", is_error=True)
+                except discord.HTTPException as e:
+                    await self._send_trace(f"Failed to create debug channel due to an HTTP error: {e}", is_error=True)
 
         if self.debug_channel and self.startup_trace_log:
             await self.debug_channel.send("--- Flushing pre-startup debug logs ---")
@@ -126,7 +146,6 @@ class MusicQueueBot(commands.Bot):
 
             queue_view_cog = self.get_cog('QueueViewCog')
             if queue_view_cog:
-                # FIX: Run the slow initialization in the background
                 asyncio.create_task(queue_view_cog.initialize_all_views())
                 await self._send_trace("Queue view initialization started in background.")
             else:
