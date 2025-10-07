@@ -33,87 +33,133 @@ class MusicQueueBot(commands.Bot):
         # Define intents
         intents = discord.Intents.default()
         intents.guilds = True
-        intents.messages = True  # Required for reading channel history (pins)
-        intents.message_content = True # Required for reading embeds of old messages
+        intents.messages = True
+        intents.message_content = True
 
-        super().__init__(
-            command_prefix='!',  # Fallback prefix, we're using slash commands
-            intents=intents,
-            help_command=None
-        )
+        super().__init__(command_prefix='!', intents=intents, help_command=None)
 
         # Initialize database
         self.db = Database()
         self.initial_startup = True
         self.settings_cache = {}
-        # TikTok Integration attributes
         self.tiktok_client = None
+
+        # --- New Diagnostic Attributes ---
+        self.debug_channel = None
+        self.startup_trace_log = []
+
+    async def _send_trace(self, message: str, is_error: bool = False):
+        """Queues a trace message or sends it if the debug channel is ready."""
+        log_message = f"**{'ERROR' if is_error else 'TRACE'}**: {message}"
+        if self.debug_channel:
+            try:
+                await self.debug_channel.send(f"```\n{log_message}\n```")
+            except discord.HTTPException:
+                pass  # Cannot send, oh well.
+        else:
+            self.startup_trace_log.append(log_message)
 
     async def setup_hook(self):
         """Setup hook called when bot is starting"""
-        # Initialize database
+        await self._send_trace("setup_hook() started.")
+        await self._send_trace("Initializing database...")
         await self.db.initialize()
+        await self._send_trace("Database initialized.")
 
-        # Load cogs
-        # Load cogs one by one for better error tracking
+        await self._send_trace("Loading cogs...")
         cogs_to_load = [
-            'cogs.queue_view',
-            'cogs.submission_cog',
-            'cogs.queue_cog',
-            'cogs.admin_cog',
-            'cogs.moderation_cog',
-            'cogs.tiktok_cog'
+            'cogs.queue_view', 'cogs.submission_cog', 'cogs.queue_cog',
+            'cogs.admin_cog', 'cogs.moderation_cog', 'cogs.tiktok_cog'
         ]
         for cog in cogs_to_load:
             try:
                 await self.load_extension(cog)
-                logging.info(f"Successfully loaded cog: {cog}")
+                await self._send_trace(f"Successfully loaded cog: {cog}")
             except Exception as e:
-                logging.error(f"Failed to load cog {cog}: {e}", exc_info=True)
+                await self._send_trace(f"Failed to load cog {cog}: {e}", is_error=True)
+        await self._send_trace("Finished loading cogs.")
 
-        # Sync slash commands
+        await self._send_trace("Syncing slash commands...")
         try:
             guild_id = os.getenv('GUILD_ID')
             if guild_id:
-                # If GUILD_ID is set, sync commands to that specific guild
                 guild = discord.Object(id=int(guild_id))
                 self.tree.copy_global_to(guild=guild)
                 synced = await self.tree.sync(guild=guild)
-                logging.info(f"Synced {len(synced)} command(s) to guild {guild_id}")
+                await self._send_trace(f"Synced {len(synced)} command(s) to guild {guild_id}.")
             else:
-                # Otherwise, sync globally (takes longer to propagate)
                 synced = await self.tree.sync()
-                logging.info(f"Synced {len(synced)} command(s) globally")
+                await self._send_trace(f"Synced {len(synced)} command(s) globally.")
         except Exception as e:
-            logging.error(f"Failed to sync commands: {e}")
+            await self._send_trace(f"Failed to sync commands: {e}", is_error=True)
+        await self._send_trace("Finished syncing commands.")
 
     async def on_ready(self):
         """Called when bot is ready"""
-        logging.info(f'{self.user} has connected to Discord!')
-        logging.info(f'Bot is in {len(self.guilds)} guild(s)')
+        # --- Find or create debug channel and flush logs ---
+        if not self.debug_channel:
+            for guild in self.guilds:
+                channel = discord.utils.get(guild.text_channels, name="bot-debug")
+                if channel:
+                    self.debug_channel = channel
+                    await self._send_trace(f"Found debug channel in guild '{guild.name}'.")
+                    break
 
-        # Set bot activity
-        activity = discord.Activity(
-            type=discord.ActivityType.listening,
-            name="music submissions | /help"
-        )
+            if not self.debug_channel and self.guilds:
+                target_guild = self.guilds[0]
+                await self._send_trace(f"Debug channel not found. Attempting to create one in '{target_guild.name}'.")
+                try:
+                    overwrites = {
+                        target_guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                        target_guild.me: discord.PermissionOverwrite(read_messages=True)
+                    }
+                    self.debug_channel = await target_guild.create_text_channel(
+                        'bot-debug',
+                        overwrites=overwrites,
+                        reason="For bot startup diagnostics"
+                    )
+                    await self._send_trace("Successfully created 'bot-debug' channel.")
+                except discord.Forbidden:
+                    await self._send_trace("Lacking 'Manage Channels' permission to create debug channel.", is_error=True)
+                except discord.HTTPException as e:
+                    await self._send_trace(f"Failed to create debug channel due to an HTTP error: {e}", is_error=True)
+
+        if self.debug_channel:
+            try:
+                await self.debug_channel.purge(limit=100)
+                await self._send_trace("Purged old logs from debug channel.")
+            except (discord.Forbidden, discord.HTTPException):
+                await self._send_trace("Failed to purge debug channel (check permissions).", is_error=True)
+
+            if self.startup_trace_log:
+                await self.debug_channel.send("--- Flushing pre-startup debug logs ---")
+                for msg in self.startup_trace_log:
+                    await self.debug_channel.send(f"```\n{msg}\n```")
+                self.startup_trace_log.clear()
+
+        await self._send_trace(f"on_ready() started. Logged in as {self.user}. In {len(self.guilds)} guild(s).")
+
+        activity = discord.Activity(type=discord.ActivityType.listening, name="music submissions | /help")
         await self.change_presence(activity=activity)
+        await self._send_trace("Presence set.")
 
-        # One-time startup tasks
         if self.initial_startup:
-            # Load all bot settings into the cache
+            await self._send_trace("Initial startup tasks beginning.")
             self.settings_cache = await self.db.get_all_bot_settings()
-            logging.info(f"Loaded bot settings cache: {self.settings_cache}")
+            await self._send_trace("Settings cache loaded.")
 
-            # Register persistent views
-            self.add_view(PaginatedQueueView(self, queue_line="dummy")) # Pass dummy args
+            self.add_view(PaginatedQueueView(self, queue_line="dummy"))
+            await self._send_trace("Persistent views registered.")
 
-            # Initialize all queue displays in a background task to not block startup
             queue_view_cog = self.get_cog('QueueViewCog')
             if queue_view_cog:
                 asyncio.create_task(queue_view_cog.initialize_all_views())
+                await self._send_trace("Queue view initialization started in background.")
+            else:
+                await self._send_trace("QueueViewCog NOT found.", is_error=True)
 
             self.initial_startup = False
+            await self._send_trace("Initial startup tasks complete.")
 
     async def on_command_error(self, ctx, error):
         """Global error handler"""
