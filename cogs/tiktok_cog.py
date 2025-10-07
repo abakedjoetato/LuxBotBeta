@@ -3,9 +3,7 @@ import logging
 import asyncio
 from discord.ext import commands
 from discord import app_commands
-from TikTokLive import TikTokLiveClient
-from TikTokLive.types.events import ConnectEvent, DisconnectEvent
-from typing import Optional
+from typing import Optional, Any
 
 class TikTokCog(commands.Cog):
     """A cog for debugging the TikTok command loading issue. Step 2: Add connection logic."""
@@ -13,7 +11,7 @@ class TikTokCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         logging.info("--- TikTokCog with Connection Logic IS BEING INITIALIZED ---")
-        self.bot.tiktok_client: Optional[TikTokLiveClient] = None
+        self.bot.tiktok_client: Optional[Any] = None
         self._is_connected = asyncio.Event()
         self._connection_task: Optional[asyncio.Task] = None
 
@@ -45,6 +43,10 @@ class TikTokCog(commands.Cog):
     @app_commands.describe(unique_id="The @unique_id of the TikTok user to connect to.")
     async def connect(self, interaction: discord.Interaction, unique_id: str):
         """Connects the bot to a specified TikTok Live stream."""
+        # Defer the import until the command is actually used
+        from TikTokLive import TikTokLiveClient
+        from TikTokLive.types.events import ConnectEvent, DisconnectEvent
+
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         if self.is_connected:
@@ -59,8 +61,15 @@ class TikTokCog(commands.Cog):
             self.bot.tiktok_client = TikTokLiveClient(unique_id=f"@{clean_unique_id}")
 
             # Add only the essential listeners
-            self.bot.tiktok_client.add_listener("connect", self.on_connect)
-            self.bot.tiktok_client.add_listener("disconnect", self.on_disconnect)
+            # We need to wrap the event handlers to pass the event types without a top-level import
+            async def on_connect_wrapper(event: ConnectEvent):
+                await self.on_connect(event)
+
+            async def on_disconnect_wrapper(event: DisconnectEvent):
+                await self.on_disconnect(event)
+
+            self.bot.tiktok_client.add_listener("connect", on_connect_wrapper)
+            self.bot.tiktok_client.add_listener("disconnect", on_disconnect_wrapper)
 
             self._connection_task = asyncio.create_task(self.bot.tiktok_client.start())
 
@@ -98,13 +107,13 @@ class TikTokCog(commands.Cog):
         logging.info("TIKTOK: Connection cleaned up.")
 
     # --- TikTok Event Handlers ---
-    async def on_connect(self, _: ConnectEvent):
+    async def on_connect(self, _):
         """Handles the connection event from the TikTok client."""
         if self.bot.tiktok_client:
             logging.info(f"TIKTOK: Connected to room ID {self.bot.tiktok_client.room_id}")
         self._is_connected.set()
 
-    async def on_disconnect(self, _: DisconnectEvent):
+    async def on_disconnect(self, _):
         """Handles the disconnection event."""
         logging.info("TIKTOK: Disconnected from stream.")
         await self._cleanup_connection()
