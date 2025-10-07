@@ -25,7 +25,6 @@ INTERACTION_POINTS = {
     "like": 1,
 }
 
-@app_commands.guild_only()
 @app_commands.default_permissions(administrator=True)
 class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for managing TikTok Live integration."):
     """Handles TikTok Live integration and engagement rewards."""
