@@ -101,6 +101,13 @@ class Database:
 
             await db.execute("DROP TABLE IF EXISTS submission_status")
 
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS tiktok_handles (
+                    user_id INTEGER PRIMARY KEY,
+                    tiktok_username TEXT NOT NULL
+                )
+            """)
+
             await db.commit()
 
     async def _generate_unique_submission_id(self, db: aiosqlite.Connection) -> str:
@@ -113,9 +120,14 @@ class Database:
 
     async def add_submission(self, user_id: int, username: str, artist_name: str,
                            song_name: str, link_or_file: str, queue_line: str,
-                           note: Optional[str] = None, tiktok_username: Optional[str] = None) -> str:
-        """Add a new submission to the database and return its public ID."""
+                           note: Optional[str] = None) -> str:
+        """Add a new submission to the database, automatically attaching the user's saved TikTok handle."""
         async with aiosqlite.connect(self.db_path) as db:
+            # Get the user's saved TikTok handle
+            async with db.execute("SELECT tiktok_username FROM tiktok_handles WHERE user_id = ?", (user_id,)) as cursor:
+                row = await cursor.fetchone()
+                tiktok_username = row[0] if row else None
+
             public_id = await self._generate_unique_submission_id(db)
             await db.execute("""
                 INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_username)
@@ -500,6 +512,31 @@ class Database:
             async with db.execute(query, (tiktok_username, *eligible_lines)) as cursor:
                 row = await cursor.fetchone()
                 return dict(row) if row else None
+
+    async def set_tiktok_handle(self, user_id: int, tiktok_username: str):
+        """Sets or updates a user's TikTok handle in the database."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT OR REPLACE INTO tiktok_handles (user_id, tiktok_username) VALUES (?, ?)",
+                (user_id, tiktok_username)
+            )
+            await db.commit()
+
+    async def get_tiktok_handle(self, user_id: int) -> Optional[str]:
+        """Retrieves a user's saved TikTok handle."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT tiktok_username FROM tiktok_handles WHERE user_id = ?", (user_id,)) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else None
+
+    async def update_user_submissions_tiktok_handle(self, user_id: int, tiktok_username: str):
+        """Updates the TikTok handle for all of a user's existing, unplayed submissions."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "UPDATE submissions SET tiktok_username = ? WHERE user_id = ? AND queue_line != ?",
+                (tiktok_username, user_id, QueueLine.CALLS_PLAYED.value)
+            )
+            await db.commit()
 
     async def close(self):
         """Close database connection"""
