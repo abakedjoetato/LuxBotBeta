@@ -100,13 +100,13 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             client = TikTokLiveClient(unique_id=f"@{clean_unique_id}")
             self.bot.tiktok_client = client
 
-            # Add event listeners directly
-            client.add_listener("connect", self.on_connect)
-            client.add_listener("disconnect", self.on_disconnect)
-            client.add_listener("like", self.on_like)
-            client.add_listener("comment", self.on_comment)
-            client.add_listener("share", self.on_share)
-            client.add_listener("gift", self.on_gift)
+            # Add event listeners directly using the event classes
+            client.add_listener(ConnectEvent, self.on_connect)
+            client.add_listener(DisconnectEvent, self.on_disconnect)
+            client.add_listener(LikeEvent, self.on_like)
+            client.add_listener(CommentEvent, self.on_comment)
+            client.add_listener(ShareEvent, self.on_share)
+            client.add_listener(GiftEvent, self.on_gift)
 
             # Store the interaction object to be used by the on_connect handler
             self._connect_interaction = interaction
@@ -183,7 +183,11 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
     async def on_share(self, event: ShareEvent): await self._handle_interaction(event.user, INTERACTION_POINTS["share"])
 
     async def on_gift(self, event: GiftEvent):
-        if event.gift.streakable and not event.gift.streaking: return
+        # If the gift is streakable, we only want to process it when the streak has ended.
+        if event.gift.streakable and event.streaking:
+            return
+
+        # Process the gift reward
         target_line_name: Optional[str] = None
         for coins, line_name in sorted(GIFT_TIER_MAP.items(), key=lambda item: item[0], reverse=True):
             if event.gift.diamond_count >= coins:
