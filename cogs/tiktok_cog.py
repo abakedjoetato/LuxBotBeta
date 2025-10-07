@@ -43,11 +43,11 @@ class TikTokCog(commands.Cog):
     @app_commands.describe(unique_id="The @unique_id of the TikTok user to connect to.")
     async def connect(self, interaction: discord.Interaction, unique_id: str):
         """Connects the bot to a specified TikTok Live stream."""
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         # Defer the import until the command is actually used
         from TikTokLive import TikTokLiveClient
         from TikTokLive.types.events import ConnectEvent, DisconnectEvent
-
-        await interaction.response.defer(ephemeral=True, thinking=True)
 
         if self.is_connected:
             await interaction.followup.send("Already connected to a TikTok LIVE. Please disconnect first.", ephemeral=True)
