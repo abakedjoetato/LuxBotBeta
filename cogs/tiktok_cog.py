@@ -6,7 +6,7 @@ from discord import app_commands
 from typing import Optional, Dict, Any
 from TikTokLive import TikTokLiveClient
 from TikTokLive.events import CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, ShareEvent
-from TikTokLive.errors import UserNotFoundError, LiveNotFoundError
+from TikTokLive.client.errors import UserNotFoundError, LiveNotFoundError
 
 # --- Constants ---
 # Map gift coin values to the queue they unlock.
