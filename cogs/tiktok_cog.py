@@ -131,9 +131,11 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             await interaction.response.send_message("Not currently connected to any stream.", ephemeral=True)
             return
 
-        await interaction.response.defer(ephemeral=True)
-        await self._cleanup_connection()
-        await interaction.followup.send("🔌 Successfully disconnected from the TikTok LIVE stream.", ephemeral=True)
+        # Respond immediately to the user
+        await interaction.response.send_message("🔌 Disconnecting... The bot will disconnect in the background.", ephemeral=True)
+
+        # Run the cleanup in a background task so it doesn't block
+        asyncio.create_task(self._cleanup_connection())
 
     async def _cleanup_connection(self):
         if self.bot.tiktok_client:
