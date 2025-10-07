@@ -356,9 +356,8 @@ class SubmissionCog(commands.Cog):
             "1. Type `/submitfile` in the chat and press **Enter**.\n"
             "2. Drag & drop or select your audio file (MP3, M4A, FLAC - no WAVs).\n"
             "3. Fill in the `artist_name` and `song_name` fields.\n"
-            "4. You can click `+1 more` to add a note for the host.\n"
-            "5. Press **Enter** to submit.\n"
-            "6. A message will ask if it's a skip. **Do not click 'Yes' unless you plan to send a skip.** "
+            "4. Press **Enter** to submit.\n"
+            "5. A message will ask if it's a skip. **Do not click 'Yes' unless you plan to send a skip.** "
             "Visit the <#1402750608678846474> channel for more information."
         )
         embed.add_field(name="📁 How to Submit a File", value=file_instructions, inline=False)

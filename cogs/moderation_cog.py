@@ -48,12 +48,13 @@ class ModerationCog(commands.Cog):
         guidance_embed = discord.Embed(
             title="🎵 How to Submit Your Music",
             description=(
-                "Hello! I noticed you sent a message in the submissions channel. "
-                "To keep things organized, that channel only accepts submissions through our official bot commands.\n\n"
+                "Hello! To keep things organized, the submission channel only accepts submissions through our official bot commands.\n\n"
                 "**Please use one of these methods:**\n"
                 "1. Click the `Submit Link` or `Submit File` buttons in the channel.\n"
                 "2. Use the `/submit` command for links.\n"
-                "3. Use the `/submitfile` command for audio files."
+                "3. Use the `/submitfile` command for audio files.\n\n"
+                "**Want to earn rewards for engaging with the TikTok LIVE?**\n"
+                "Make sure to link your TikTok handle to your account! Type `/updatetiktokhandle`, press Enter, and then type or paste your TikTok **@handle** (not your display name)."
             ),
             color=discord.Color.blue()
         )

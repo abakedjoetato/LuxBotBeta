@@ -141,12 +141,12 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         await self.bot._send_trace("Starting _cleanup_connection...")
 
         if self.bot.tiktok_client:
-            await self.bot._send_trace("Stopping TikTok client...")
+            await self.bot._send_trace("Disconnecting from TikTok client...")
             try:
-                await self.bot.tiktok_client.stop()
-                await self.bot._send_trace("TikTok client stopped.")
+                await self.bot.tiktok_client.disconnect()
+                await self.bot._send_trace("TikTok client disconnected.")
             except Exception as e:
-                await self.bot._send_trace(f"Error stopping aiohttp client: {e}", is_error=True)
+                await self.bot._send_trace(f"Error disconnecting from client: {e}", is_error=True)
 
         if self._connection_task and not self._connection_task.done():
             await self.bot._send_trace("Cancelling connection task...")
