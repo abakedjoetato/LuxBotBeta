@@ -91,28 +91,6 @@ class AdminCog(commands.Cog):
                 if line:
                     await queue_cog.update_queue_display(line)
 
-    @app_commands.command(name="setplaying", description="[ADMIN] Set the currently playing submission for interaction tracking.")
-    @app_commands.describe(submission_id="The ID of the submission to set as active (e.g., #123456)")
-    @is_admin()
-    async def set_playing(self, interaction: discord.Interaction, submission_id: str):
-        """Manually sets the submission that is considered 'now playing' for TikTok scoring."""
-        await interaction.response.defer(ephemeral=True)
-        public_id = submission_id.strip('#')
-
-        submission = await self.bot.db.get_submission_by_id(public_id)
-        if not submission:
-            await interaction.followup.send(f"❌ Submission `#{public_id}` not found.", ephemeral=True)
-            return
-
-        self.bot.currently_playing_submission_id = public_id
-
-        embed = discord.Embed(
-            title="🎯 Active Submission Set",
-            description=f"Submission `#{public_id}` (**{submission['artist_name']} - {submission['song_name']}**) is now the active track for interaction scoring.",
-            color=discord.Color.green()
-        )
-        await interaction.followup.send(embed=embed, ephemeral=True)
-
     @app_commands.command(name="setline", description="Set the channel for a queue line")
     @app_commands.describe(
         line="The queue line to configure",
@@ -246,22 +224,17 @@ class AdminCog(commands.Cog):
     async def next_submission(self, interaction: discord.Interaction):
         """Get the next submission following priority order"""
         try:
-            # When /next is called, the new submission becomes the one tracking points.
             next_sub = await self.bot.db.take_next_to_calls_played()
 
             if not next_sub:
-                self.bot.currently_playing_submission_id = None
                 embed = discord.Embed(
                     title="📭 Queue Empty",
-                    description="No submissions are currently in the queue. Interaction tracking is now paused.",
+                    description="No submissions are currently in the queue.",
                     color=discord.Color.blue()
                 )
                 await interaction.response.send_message(embed=embed, ephemeral=True)
                 return
 
-            # Set the new submission as the one to track for interactions.
-            self.bot.currently_playing_submission_id = next_sub['public_id']
-            
             # Announce to #now-playing channel if set
             now_playing_channel_id = self.bot.settings_cache.get('now_playing_channel_id')
             if now_playing_channel_id:
@@ -294,12 +267,6 @@ class AdminCog(commands.Cog):
 
             if next_sub.get('note'):
                 embed.add_field(name="Note", value=next_sub['note'], inline=False)
-            
-            embed.add_field(
-                name="🔴 Live Interaction Tracking",
-                value=f"Submission `#{next_sub['public_id']}` is now **active** and accumulating interaction points.",
-                inline=False
-            )
 
             embed.set_footer(text=f"Submitted on {next_sub['submission_time']} | Luxurious Radio By Emerald Beats")
             

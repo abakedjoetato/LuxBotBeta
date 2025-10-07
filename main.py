@@ -48,7 +48,6 @@ class MusicQueueBot(commands.Bot):
         self.settings_cache = {}
         # TikTok Integration attributes
         self.tiktok_client = None
-        self.currently_playing_submission_id: Optional[str] = None
 
     async def setup_hook(self):
         """Setup hook called when bot is starting"""
