@@ -138,20 +138,43 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         asyncio.create_task(self._cleanup_connection())
 
     async def _cleanup_connection(self):
+        await self.bot._send_trace("Starting _cleanup_connection...")
+
         if self.bot.tiktok_client:
-            await self.bot.tiktok_client.stop()
+            await self.bot._send_trace("Stopping TikTok client...")
+            try:
+                await self.bot.tiktok_client.stop()
+                await self.bot._send_trace("TikTok client stopped.")
+            except Exception as e:
+                await self.bot._send_trace(f"Error stopping aiohttp client: {e}", is_error=True)
+
         if self._connection_task and not self._connection_task.done():
+            await self.bot._send_trace("Cancelling connection task...")
             self._connection_task.cancel()
+            await self.bot._send_trace("Connection task cancelled.")
 
         self.bot.tiktok_client = None
-        self._is_connected.clear()
+        await self.bot._send_trace("bot.tiktok_client set to None.")
 
-        if self.watch_time_scorekeeper.is_running(): self.watch_time_scorekeeper.cancel()
-        if self.realtime_resort_task.is_running(): self.realtime_resort_task.cancel()
+        self._is_connected.clear()
+        await self.bot._send_trace("_is_connected event cleared.")
+
+        if self.watch_time_scorekeeper.is_running():
+            self.watch_time_scorekeeper.cancel()
+            await self.bot._send_trace("watch_time_scorekeeper task cancelled.")
+
+        if self.realtime_resort_task.is_running():
+            self.realtime_resort_task.cancel()
+            await self.bot._send_trace("realtime_resort_task task cancelled.")
 
         self.viewer_scores.clear()
+        await self.bot._send_trace("Viewer scores cleared.")
+
         self._connect_interaction = None
+        await self.bot._send_trace("_connect_interaction set to None.")
+
         logging.info("TIKTOK: Connection cleaned up.")
+        await self.bot._send_trace("Connection cleanup finished.")
 
     # --- Event Handlers ---
     async def on_connect(self, _: ConnectEvent):

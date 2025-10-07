@@ -469,7 +469,7 @@ class Database:
                 # Calculate and update scores for each submission
                 for sub in free_line_subs:
                     watch_time = viewer_scores.get(sub['tiktok_username'], 0)
-                    live_watch_score = watch_time * 0.5  # 0.5 points per minute watched
+                    live_watch_score = watch_time * 1.0  # 1 point per minute watched
                     total_score = live_watch_score + sub['live_interaction_score']
 
                     await db.execute(
