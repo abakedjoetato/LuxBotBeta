@@ -11,11 +11,9 @@ from TikTokLive.client.errors import UserNotFoundError, UserOfflineError
 # --- Constants ---
 # Map gift coin values to the queue they unlock.
 GIFT_TIER_MAP = {
-    100: "25+ Skip",
-    50: "20 Skip",
-    25: "15 Skip",
-    10: "10 Skip",
-    1: "5 Skip",
+    5000: "25+ Skip",
+    2000: "10 Skip",
+    1000: "5 Skip",
 }
 
 # Points awarded for different interactions
@@ -212,22 +210,33 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         if event.gift.streakable and event.streaking:
             return
 
-        # Process the gift reward
+        gift_value = event.gift.diamond_count
+
+        # Determine if the gift qualifies for a tier move
         target_line_name: Optional[str] = None
         for coins, line_name in sorted(GIFT_TIER_MAP.items(), key=lambda item: item[0], reverse=True):
-            if event.gift.diamond_count >= coins:
+            if gift_value >= coins:
                 target_line_name = line_name
                 break
-        if not target_line_name: return
+
         submission = await self.bot.db.find_active_submission_by_tiktok_user(event.user.unique_id)
-        if not submission: return
-        original_line = await self.bot.db.move_submission(submission['public_id'], target_line_name)
-        if original_line and original_line != target_line_name:
-            logging.info(f"TIKTOK: Rewarded {event.user.unique_id} with a move to {target_line_name} for a {event.gift.diamond_count}-coin gift.")
-            queue_view_cog = self.bot.get_cog('QueueViewCog')
-            if queue_view_cog:
-                await queue_view_cog.create_or_update_queue_view(original_line)
-                await queue_view_cog.create_or_update_queue_view(target_line_name)
+        if not submission:
+            return
+
+        # If a tier was met, move the submission
+        if target_line_name:
+            original_line = await self.bot.db.move_submission(submission['public_id'], target_line_name)
+            if original_line and original_line != target_line_name:
+                logging.info(f"TIKTOK: Rewarded {event.user.unique_id} with a move to {target_line_name} for a {gift_value}-coin gift.")
+                queue_view_cog = self.bot.get_cog('QueueViewCog')
+                if queue_view_cog:
+                    await queue_view_cog.create_or_update_queue_view(original_line)
+                    await queue_view_cog.create_or_update_queue_view(target_line_name)
+        # Otherwise, award points for smaller gifts
+        else:
+            points = gift_value * 0.5
+            await self._handle_interaction(event.user, points)
+            logging.info(f"TIKTOK: Awarded {event.user.unique_id} with {points} points for a {gift_value}-coin gift.")
 
     # --- Background Tasks ---
     @tasks.loop(minutes=1)
