@@ -72,16 +72,13 @@ class TikTokHandleModal(discord.ui.Modal, title='Enter Your TikTok Handle'):
 async def _begin_submission_process(bot, interaction: discord.Interaction, submission_data: dict):
     """
     The new submission process: asks for the TikTok handle directly.
+    This is now called from a button, so we must use interaction.response.send_modal.
     """
-    if not interaction.response.is_done():
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
+    # This function is now triggered by a button click.
+    # The original interaction from the button click must be responded to.
+    # We respond by sending a new modal.
     modal = TikTokHandleModal(bot, submission_data)
-    # Check if an initial response has been sent. If so, use a followup.
-    if interaction.response.is_done():
-        await interaction.followup.send_modal(modal)
-    else:
-        await interaction.response.send_modal(modal)
+    await interaction.response.send_modal(modal)
 
 
 async def _finalize_submission(bot, interaction: discord.Interaction, submission_data: dict):

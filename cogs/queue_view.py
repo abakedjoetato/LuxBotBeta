@@ -59,9 +59,9 @@ class PaginatedQueueView(discord.ui.View):
             for i, sub in enumerate(page_submissions, start_number):
                 link_text = f" ([Link]({sub['link_or_file']}))" if sub['link_or_file'].startswith('http') else " (File)"
                 # Determine which timestamp to use
-                is_calls_played = self.queue_line == QueueLine.CALLS_PLAYED.value
-                time_to_display = sub.get('played_time') if is_calls_played else sub.get('submission_time')
-                time_prefix = "Played" if is_calls_played else "Submitted"
+                is_songs_played = self.queue_line == QueueLine.SONGS_PLAYED.value
+                time_to_display = sub.get('played_time') if is_songs_played else sub.get('submission_time')
+                time_prefix = "Played" if is_songs_played else "Submitted"
 
                 timestamp_str = ""
                 if time_to_display:
@@ -105,7 +105,7 @@ class PaginatedQueueView(discord.ui.View):
             QueueLine.TENSKIP.value: discord.Color.gold(),
             QueueLine.FIVESKIP.value: discord.Color.yellow(),
             QueueLine.FREE.value: discord.Color.green(),
-            QueueLine.CALLS_PLAYED.value: discord.Color.purple()
+            QueueLine.SONGS_PLAYED.value: discord.Color.purple()
         }
         return colors.get(self.queue_line, discord.Color.default())
     
@@ -256,7 +256,7 @@ class QueueViewCog(commands.Cog):
         channel_cleanup_exempt_ids = [now_playing_channel_id, bookmark_channel_id]
 
         # List of queue types that should never be purged.
-        queue_type_cleanup_exempt = [QueueLine.CALLS_PLAYED.value]
+        queue_type_cleanup_exempt = [QueueLine.SONGS_PLAYED.value]
 
         is_exempt = (
             channel.id in channel_cleanup_exempt_ids or
@@ -292,7 +292,7 @@ class QueueViewCog(commands.Cog):
         if not channel:
             return
 
-        entries_per_page = 25 if queue_line == QueueLine.CALLS_PLAYED.value else 10
+        entries_per_page = 25 if queue_line == QueueLine.SONGS_PLAYED.value else 10
         view = PaginatedQueueView(self.bot, queue_line, entries_per_page=entries_per_page)
         await view.update_data()
         view.update_buttons()
