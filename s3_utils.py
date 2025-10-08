@@ -24,6 +24,9 @@ class S3Client:
             logging.warning("S3_CLIENT: Missing one or more required B2 environment variables. S3 functionality will be disabled.")
             return
 
+        if not self.endpoint_url.startswith('https://'):
+            self.endpoint_url = f'https://{self.endpoint_url}'
+
         self.session = aioboto3.Session(
             aws_access_key_id=self.aws_access_key_id,
             aws_secret_access_key=self.aws_secret_access_key,

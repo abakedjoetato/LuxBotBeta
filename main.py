@@ -6,8 +6,10 @@ TikTok-style music review queue system with slash commands and Discord UI compon
 import asyncio
 import os
 import logging
+import traceback
 from typing import Optional
 import discord
+from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 from database import Database
@@ -58,7 +60,8 @@ class MusicQueueBot(commands.Bot):
         logging.info("Loading cogs...")
         cogs_to_load = [
             'cogs.queue_view', 'cogs.submission_cog', 'cogs.queue_cog',
-            'cogs.admin_cog', 'cogs.moderation_cog', 'cogs.tiktok_cog'
+            'cogs.admin_cog', 'cogs.moderation_cog', 'cogs.tiktok_cog',
+            'cogs.debug_cog'
         ]
         for cog in cogs_to_load:
             try:
@@ -109,13 +112,65 @@ class MusicQueueBot(commands.Bot):
             self.initial_startup = False
             logging.info("Initial startup tasks complete.")
 
-    async def on_command_error(self, ctx, error):
-        """Global error handler"""
-        if isinstance(error, commands.CommandNotFound):
+    async def _log_error_to_channel(self, error: Exception, context_object):
+        """Helper function to log an error to the debug channel."""
+        debug_channel_id = self.settings_cache.get('debug_channel_id')
+        if not debug_channel_id:
+            return  # No debug channel set
+
+        channel = self.get_channel(debug_channel_id)
+        if not channel:
+            logging.warning(f"Debug channel with ID {debug_channel_id} not found.")
             return
+
+        traceback_str = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+
+        # Truncate if too long for a single message
+        if len(traceback_str) > 1900:
+            traceback_str = traceback_str[:1900] + "\n... (truncated)"
+
+        embed = discord.Embed(
+            title="Bot Error Report",
+            description=f"An error occurred.",
+            color=discord.Color.red()
+        )
+        if isinstance(context_object, discord.Interaction):
+            embed.add_field(name="Command", value=f"`{context_object.command.name}`", inline=False)
+            embed.add_field(name="User", value=context_object.user.mention, inline=False)
+        elif isinstance(context_object, commands.Context):
+            embed.add_field(name="Command", value=f"`{context_object.command.name}`", inline=False)
+            embed.add_field(name="User", value=context_object.author.mention, inline=False)
+
+        embed.add_field(name="Traceback", value=f"```python\n{traceback_str}\n```", inline=False)
+
+        try:
+            await channel.send(embed=embed)
+        except discord.Forbidden:
+            logging.error("Failed to send error log to debug channel due to permissions.")
+        except Exception as e:
+            logging.error(f"An unexpected error occurred while logging to debug channel: {e}")
+
+    async def on_tree_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        """Global error handler for slash commands."""
+        logging.error(f"Slash command error: {error}", exc_info=True)
+        await self._log_error_to_channel(error, interaction)
+
+        # Send a user-friendly message
+        if interaction.response.is_done():
+            await interaction.followup.send("An unexpected error occurred. The developers have been notified.", ephemeral=True)
+        else:
+            await interaction.response.send_message("An unexpected error occurred. The developers have been notified.", ephemeral=True)
+
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
+        """Global error handler for prefix commands."""
+        if isinstance(error, commands.CommandNotFound):
+            return # Ignore commands that don't exist
+
         logging.error(f"Command error: {error}", exc_info=True)
+        await self._log_error_to_channel(error, ctx)
+
         if hasattr(ctx, 'send'):
-            await ctx.send(f"An error occurred: {str(error)}")
+            await ctx.send("An unexpected error occurred. The developers have been notified.")
 
     async def close(self):
         """Gracefully close bot connections."""
