@@ -201,7 +201,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         submission = await self.bot.db.find_active_submission_by_tiktok_user(user.unique_id)
         if submission: await self.bot.db.add_interaction_score(submission['public_id'], points)
 
-    async def on_like(self, event: LikeEvent): await self._handle_interaction(event.user, INTERACTION_POINTS["like"] * event.like_count)
+    async def on_like(self, event: LikeEvent): await self._handle_interaction(event.user, INTERACTION_POINTS["like"])
     async def on_comment(self, event: CommentEvent): await self._handle_interaction(event.user, INTERACTION_POINTS["comment"])
     async def on_share(self, event: ShareEvent): await self._handle_interaction(event.user, INTERACTION_POINTS["share"])
 
@@ -241,12 +241,10 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
     # --- Background Tasks ---
     @tasks.loop(minutes=1)
     async def watch_time_scorekeeper(self):
-        if not self.is_connected or not self.bot.tiktok_client: return
-        try:
-            viewers = self.bot.tiktok_client.viewers
-            for user in viewers:
-                self.viewer_scores[user.unique_id] = self.viewer_scores.get(user.unique_id, 0) + 1
-        except Exception as e: logging.error(f"Error in watch_time_scorekeeper: {e}")
+        # This feature is temporarily disabled due to a breaking change in the TikTok an API library.
+        # The library no longer provides a list of viewers, only a viewer count.
+        # A new method for tracking watch time will need to be implemented.
+        pass
 
     @tasks.loop(seconds=30)
     async def realtime_resort_task(self):
