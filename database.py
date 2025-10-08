@@ -341,6 +341,63 @@ class Database:
             row = await conn.fetchrow(query, user_id, non_rewardable_queues)
             return dict(row) if row else None
 
+    async def get_all_bot_settings(self) -> Dict[str, Any]:
+        """Fetches all settings from the bot_config table and returns them as a dictionary."""
+        query = "SELECT key, value, channel_id, message_id FROM bot_config;"
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query)
+            settings = {}
+            for row in rows:
+                if row['channel_id']:
+                    settings[row['key']] = row['channel_id']
+                elif row['message_id']:
+                    settings[row['key']] = row['message_id']
+                else:
+                    settings[row['key']] = row['value']
+            return settings
+
+    async def set_bot_config(self, key: str, value: Optional[str] = None, channel_id: Optional[int] = None, message_id: Optional[int] = None):
+        """Inserts or updates a setting in the bot_config table."""
+        query = """
+            INSERT INTO bot_config (key, value, channel_id, message_id)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (key) DO UPDATE
+            SET value = EXCLUDED.value,
+                channel_id = EXCLUDED.channel_id,
+                message_id = EXCLUDED.message_id;
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, key, value, channel_id, message_id)
+
+    async def set_free_line_status(self, is_open: bool):
+        """Sets the status of the Free line (open/closed)."""
+        await self.set_bot_config('free_line_closed', value='0' if is_open else '1')
+
+    async def clear_free_line(self) -> int:
+        """Removes all submissions from the 'Free' queue and returns the count of removed submissions."""
+        query = "DELETE FROM submissions WHERE queue_line = 'Free' RETURNING id;"
+        async with self.pool.acquire() as conn:
+            deleted_rows = await conn.fetch(query)
+            return len(deleted_rows)
+
+    async def move_submission(self, public_id: str, target_line: str) -> Optional[str]:
+        """Moves a submission to a different queue line and returns the original line."""
+        async with self.pool.acquire() as conn:
+            original_line = await conn.fetchval("SELECT queue_line FROM submissions WHERE public_id = $1", public_id)
+            if original_line:
+                await conn.execute("UPDATE submissions SET queue_line = $1 WHERE public_id = $2", target_line, public_id)
+                return original_line
+            return None
+
+    async def remove_submission_from_queue(self, public_id: str) -> Optional[str]:
+        """Removes a submission from its queue by setting its queue_line to NULL. Returns the original line."""
+        async with self.pool.acquire() as conn:
+            original_line = await conn.fetchval("SELECT queue_line FROM submissions WHERE public_id = $1", public_id)
+            if original_line:
+                await conn.execute("UPDATE submissions SET queue_line = NULL WHERE public_id = $1", public_id)
+                return original_line
+            return None
+
     async def close(self):
         """Close database connection pool."""
         if self._pool:
