@@ -9,7 +9,6 @@ import uuid
 from typing import Optional
 from database import QueueLine
 from .checks import is_admin
-from s3_utils import S3Client  # Import the S3Client
 
 # List of common cloud storage domains to check for public link reminders.
 CLOUD_STORAGE_DOMAINS = [
@@ -306,7 +305,6 @@ class SubmissionCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.submission_view = SubmissionButtonView(bot)
-        self.s3_client = S3Client()
 
     async def cog_load(self):
         self.bot.add_view(self.submission_view)
@@ -324,14 +322,23 @@ class SubmissionCog(commands.Cog):
         note="Optional note for the host"
     )
     async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str, note: Optional[str] = None):
-        if not self.s3_client.is_configured:
-            await interaction.response.send_message(
-                "❌ File submissions are temporarily disabled as the bot's file storage is not configured. Please use a link instead.",
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        storage_channel_id = self.bot.settings_cache.get('storage_channel_id')
+        if not storage_channel_id:
+            await interaction.followup.send(
+                "❌ File submissions are not configured. An admin must set a storage channel with `/setstoragechannel`.",
                 ephemeral=True
             )
             return
 
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        storage_channel = self.bot.get_channel(storage_channel_id)
+        if not storage_channel:
+            await interaction.followup.send(
+                f"❌ Storage channel with ID `{storage_channel_id}` not found. An admin needs to set a new one.",
+                ephemeral=True
+            )
+            return
 
         valid_extensions = ('.mp3', '.m4a', '.flac')
         if not file.filename.lower().endswith(valid_extensions):
@@ -345,16 +352,11 @@ class SubmissionCog(commands.Cog):
             return
 
         try:
-            file_bytes = await file.read()
-            file_extension = f".{file.filename.split('.')[-1]}"
-            object_name = f"submissions/{interaction.user.id}/{uuid.uuid4()}{file_extension}"
+            # Post the file to the storage channel
+            storage_message = await storage_channel.send(file=await file.to_file())
 
-            success = await self.s3_client.upload_file_from_bytes(file_bytes, object_name, file.content_type)
-            if not success:
-                await interaction.followup.send("❌ There was an error uploading your file to storage. Please try again later.", ephemeral=True)
-                return
-
-            file_url = self.s3_client.get_public_file_url(object_name)
+            # Get the permanent Discord CDN URL
+            file_url = storage_message.attachments[0].url
 
             submission_data = {
                 'artist_name': artist_name.strip(),
@@ -367,6 +369,8 @@ class SubmissionCog(commands.Cog):
             await interaction.followup.send("Is this a **Skip** submission?", view=view, ephemeral=True)
             view.message = await interaction.original_response()
 
+        except discord.Forbidden:
+            await interaction.followup.send(f"❌ I don't have the required permissions to upload files to the storage channel ({storage_channel.mention}).", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"❌ An unexpected error occurred during file processing: {e}", ephemeral=True)
 

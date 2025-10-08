@@ -244,44 +244,32 @@ class AdminCog(commands.Cog):
                     submitter_name = next_sub['username']
                     announcement = f"🎶 Now Playing: **{next_sub['artist_name']} – {next_sub['song_name']}** (submitted by *{submitter_name}*)"
 
-                    # Check if it's a file from S3
-                    submission_cog = self.bot.get_cog('SubmissionCog')
-                    if submission_cog and submission_cog.s3_client.is_configured:
-                        s3_client = submission_cog.s3_client
-                        is_s3_file, object_name = False, None
-                        try:
-                            submission_url = urlparse(next_sub['link_or_file'])
-                            s3_endpoint_hostname = urlparse(s3_client.endpoint_url).hostname
-
-                            # This is more robust. It handles cases where the endpoint is a base domain
-                            # or a bucket-specific domain by checking if the submission URL's
-                            # hostname ends with the configured S3 endpoint's hostname.
-                            if submission_url.hostname and s3_endpoint_hostname and submission_url.hostname.endswith(s3_endpoint_hostname):
-                                is_s3_file = True
-                                object_name = submission_url.path.lstrip('/')
-                        except (ValueError, TypeError):
-                            # If parsing fails, it's not a valid URL.
-                            pass
-
-                        if is_s3_file and object_name:
-                            if not channel.permissions_for(interaction.guild.me).attach_files:
-                                announcement_status = f"❌ I don't have permission to attach files in {channel.mention}."
-                            else:
-                                file_bytes = await s3_client.download_file_as_bytes(object_name)
-                                if file_bytes:
-                                    import io
-                                    discord_file = discord.File(io.BytesIO(file_bytes), filename=object_name.split('/')[-1])
-                                    await channel.send(announcement, file=discord_file)
-                                    announcement_status = f"✅ Successfully sent announcement with file to {channel.mention}."
-                                else:
-                                    await channel.send(f"{announcement}\n(Error: Could not retrieve file from storage)")
-                                    announcement_status = f"⚠️ Sent announcement to {channel.mention}, but failed to download the file from S3."
+                    # Check if the link is a Discord CDN URL
+                    link = next_sub['link_or_file']
+                    if "cdn.discordapp.com/attachments/" in link:
+                        if not channel.permissions_for(interaction.guild.me).attach_files:
+                            announcement_status = f"❌ I don't have permission to attach files in {channel.mention}."
+                            await channel.send(f"{announcement}\n{link}")
                         else:
-                            await channel.send(f"{announcement}\n{next_sub['link_or_file']}")
-                            announcement_status = f"✅ Successfully sent announcement with link to {channel.mention}."
+                            try:
+                                async with self.bot.http_session.get(link) as resp:
+                                    if resp.status == 200:
+                                        file_bytes = await resp.read()
+                                        filename = link.split('/')[-1]
+                                        import io
+                                        discord_file = discord.File(io.BytesIO(file_bytes), filename=filename)
+                                        await channel.send(announcement, file=discord_file)
+                                        announcement_status = f"✅ Successfully sent announcement with file to {channel.mention}."
+                                    else:
+                                        await channel.send(f"{announcement}\n{link}")
+                                        announcement_status = f"⚠️ Sent announcement with link to {channel.mention}, but failed to download the file (HTTP {resp.status})."
+                            except Exception as e:
+                                await channel.send(f"{announcement}\n{link}")
+                                announcement_status = f"⚠️ Sent announcement with link to {channel.mention}, but an error occurred during download: {e}"
                     else:
-                        await channel.send(f"{announcement}\n{next_sub['link_or_file']}")
-                        announcement_status = f"✅ Successfully sent announcement with link to {channel.mention} (S3 client not configured)."
+                        # It's a regular link, just post it
+                        await channel.send(f"{announcement}\n{link}")
+                        announcement_status = f"✅ Successfully sent announcement with link to {channel.mention}."
 
             embed = discord.Embed(
                 title="🎵 Now Playing - Moved to Calls Played",
@@ -396,6 +384,28 @@ class AdminCog(commands.Cog):
             )
             error_embed.add_field(name="Error Details", value=f"```\n{e}\n```", inline=False)
             await interaction.followup.send(embed=error_embed, ephemeral=True)
+
+    @app_commands.command(name="setstoragechannel", description="[ADMIN] Set the channel for storing submitted files.")
+    @app_commands.describe(channel="The private channel to store file submissions in.")
+    @is_admin()
+    async def set_storage_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """Sets the file storage channel."""
+        await interaction.response.defer(ephemeral=True)
+        try:
+            # Check if the bot can send messages and attach files to the channel
+            permissions = channel.permissions_for(interaction.guild.me)
+            if not permissions.send_messages or not permissions.attach_files:
+                await interaction.followup.send(
+                    "❌ I need 'Send Messages' and 'Attach Files' permissions in that channel.",
+                    ephemeral=True
+                )
+                return
+
+            await self.bot.db.set_storage_channel(channel.id)
+            self.bot.settings_cache['storage_channel_id'] = channel.id
+            await interaction.followup.send(f"✅ File storage channel has been set to {channel.mention}.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ An error occurred: {e}", ephemeral=True)
 
     @app_commands.command(name="setnowplayingchannel", description="Set the channel for 'Now Playing' announcements")
     @app_commands.describe(channel="The text channel to use for announcements")

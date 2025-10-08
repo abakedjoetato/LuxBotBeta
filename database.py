@@ -294,6 +294,15 @@ class Database:
         val = await self._execute_val("SELECT value FROM bot_settings WHERE key = 'bookmark_channel_id'")
         return int(val) if val and val.isdigit() else None
 
+    async def set_storage_channel(self, channel_id: int):
+        """Sets the channel ID for file storage."""
+        await self._execute_run("INSERT INTO bot_settings (key, value) VALUES ('storage_channel_id', $1) ON CONFLICT (key) DO UPDATE SET value = $1", str(channel_id))
+
+    async def get_storage_channel(self) -> Optional[int]:
+        """Gets the channel ID for file storage."""
+        val = await self._execute_val("SELECT value FROM bot_settings WHERE key = 'storage_channel_id'")
+        return int(val) if val and val.isdigit() else None
+
     async def get_all_channel_settings(self) -> List[Dict[str, Any]]:
         rows = await self._execute("SELECT * FROM channel_settings ORDER BY queue_line")
         return [dict(row) for row in rows]

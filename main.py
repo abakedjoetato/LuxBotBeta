@@ -14,6 +14,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from database import Database
 from cogs.queue_view import PaginatedQueueView
+import aiohttp
 
 # Load environment variables
 load_dotenv()
@@ -49,10 +50,13 @@ class MusicQueueBot(commands.Bot):
         self.initial_startup = True
         self.settings_cache = {}
         self.tiktok_client = None
+        self.http_session = None
 
     async def setup_hook(self):
         """Setup hook called when bot is starting"""
         logging.info("setup_hook() started.")
+        self.http_session = aiohttp.ClientSession()
+        logging.info("HTTP session started.")
         logging.info("Initializing database...")
         await self.db.initialize()
         logging.info("Database initialized.")
@@ -174,6 +178,9 @@ class MusicQueueBot(commands.Bot):
 
     async def close(self):
         """Gracefully close bot connections."""
+        if self.http_session:
+            await self.http_session.close()
+            logging.info("HTTP session closed.")
         logging.info("Closing database connection pool...")
         await self.db.close()
         await super().close()
