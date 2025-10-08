@@ -413,6 +413,42 @@ class Database:
                 return original_line
             return None
 
+    async def get_user_lifetime_stats(self, user_id: int) -> Dict[str, int]:
+        """
+        Calculates lifetime interaction stats (likes, comments, shares, gift coins)
+        for a given Discord user across all their linked TikTok accounts.
+        """
+        query = """
+            SELECT
+                ti.interaction_type,
+                COUNT(ti.id) AS count,
+                SUM(ti.coin_value) AS total_coins
+            FROM
+                tiktok_interactions ti
+            JOIN
+                tiktok_accounts ta ON ti.tiktok_account_id = ta.handle_id
+            WHERE
+                ta.linked_discord_id = $1
+            GROUP BY
+                ti.interaction_type;
+        """
+        stats = {
+            'like': 0,
+            'comment': 0,
+            'share': 0,
+            'follow': 0,
+            'gift_coins': 0
+        }
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, user_id)
+            for row in rows:
+                interaction_type = row['interaction_type']
+                if interaction_type in stats:
+                    stats[interaction_type] = row['count']
+                if interaction_type == 'gift' and row['total_coins']:
+                    stats['gift_coins'] = int(row['total_coins'])
+        return stats
+
     async def close(self):
         """Close database connection pool."""
         if self._pool:

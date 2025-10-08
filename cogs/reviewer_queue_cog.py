@@ -45,12 +45,22 @@ class ReviewerQueueCog(commands.Cog):
         current_description = ""
 
         for sub in submissions:
+            # Get user's lifetime interaction stats
+            stats = await self.db.get_user_lifetime_stats(sub['user_id'])
+            stats_line = f"👍{stats['like']} 💬{stats['comment']} 🔗{stats['share']} 🪙{stats['gift_coins']}"
+
             # Format the entry with all the details
             entry = (
                 f"**#{sub['public_id']} | {sub['artist_name']} - {sub['song_name']}**\n"
-                f"> **Queue:** {sub['queue_line']} | **Score:** {sub.get('total_score', 0)}\n"
                 f"> **Submitter:** {sub['username']} (`{sub['user_id']}`)\n"
+                f"> **Queue:** `{sub['queue_line']}` | **Score:** `{sub.get('total_score', 0)}`\n"
             )
+            # Display TikTok handle if it was linked at the time of submission
+            if sub.get('tiktok_username'):
+                entry += f"> **TikTok:** `{sub['tiktok_username']}`\n"
+
+            entry += f"> **Lifetime Stats:** {stats_line}\n"
+
             if sub['link_or_file'].startswith("http"):
                 entry += f"> **Link:** [Click Here]({sub['link_or_file']})\n"
             if sub.get('note'):
@@ -107,6 +117,8 @@ class ReviewerQueueCog(commands.Cog):
             if message:
                 await message.edit(embeds=new_embeds)
             else:
+                # Purge old pinned messages from the bot before creating a new one.
+                await channel.purge(limit=10, check=lambda m: m.author == self.bot.user and m.pinned)
                 message = await channel.send(embeds=new_embeds)
                 await message.pin()
                 await self.db.set_bot_config('reviewer_queue_message_id', message_id=message.id)
