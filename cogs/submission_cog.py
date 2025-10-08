@@ -37,13 +37,16 @@ class TikTokHandleModal(discord.ui.Modal, title='Link Your TikTok Handle'):
         await interaction.response.defer(ephemeral=True, thinking=True)
         clean_handle = self.handle.value.strip().lstrip('@')
 
-        # This is a simplified linking process. It assumes any handle they enter is valid for now.
-        # A more robust system might verify the handle exists in the tiktok_accounts table.
-        await self.bot.db.link_tiktok_account(interaction.user.id, clean_handle)
+        # Link the account and handle the response tuple (success, message)
+        success, message = await self.bot.db.link_tiktok_account(interaction.user.id, clean_handle)
 
-        await interaction.followup.send(f"✅ Your TikTok handle has been set to **@{clean_handle}**. Your submission will now proceed.", ephemeral=True)
+        if not success:
+            # If linking failed, show the error message from the DB and stop.
+            await interaction.followup.send(f"❌ **Linking Failed:** {message}", ephemeral=True)
+            return
 
-        # Finalize the submission now that the handle is linked
+        # If linking succeeded, show the success message and proceed with the submission.
+        await interaction.followup.send(f"✅ {message} Your submission will now proceed.", ephemeral=True)
         await _finalize_submission(self.bot, interaction, self.submission_data)
 
 class HandlePromptView(discord.ui.View):
