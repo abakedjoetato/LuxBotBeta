@@ -152,12 +152,9 @@ class MusicQueueBot(commands.Bot):
             self.add_view(PaginatedQueueView(self, queue_line="dummy"))
             await self._send_trace("Persistent views registered.")
 
-            queue_view_cog = self.get_cog('QueueViewCog')
-            if queue_view_cog:
-                asyncio.create_task(queue_view_cog.initialize_all_views())
-                await self._send_trace("Queue view initialization started in background.")
-            else:
-                await self._send_trace("QueueViewCog NOT found.", is_error=True)
+            # The PaginatedQueueView is a persistent view and does not need manual initialization here.
+            # The previous logic was trying to find a cog that doesn't exist.
+            await self._send_trace("Persistent views registered.")
 
             self.initial_startup = False
             await self._send_trace("Initial startup tasks complete.")
