@@ -232,10 +232,15 @@ class AdminCog(commands.Cog):
                 return
 
             # Announce to #now-playing channel if set
+            announcement_status = "`now_playing_channel_id` is not set. Use `/setnowplayingchannel`."
             now_playing_channel_id = self.bot.settings_cache.get('now_playing_channel_id')
             if now_playing_channel_id:
                 channel = self.bot.get_channel(now_playing_channel_id)
-                if channel:
+                if not channel:
+                    announcement_status = f"⚠️ Channel with ID `{now_playing_channel_id}` not found."
+                elif not channel.permissions_for(interaction.guild.me).send_messages:
+                    announcement_status = f"❌ I don't have permission to send messages in {channel.mention}."
+                else:
                     submitter_name = next_sub['username']
                     announcement = f"🎶 Now Playing: **{next_sub['artist_name']} – {next_sub['song_name']}** (submitted by *{submitter_name}*)"
 
@@ -243,36 +248,40 @@ class AdminCog(commands.Cog):
                     submission_cog = self.bot.get_cog('SubmissionCog')
                     if submission_cog and submission_cog.s3_client.is_configured:
                         s3_client = submission_cog.s3_client
-                        # --- ROBUST S3 URL CHECK ---
-                        is_s3_file = False
-                        object_name = None
+                        is_s3_file, object_name = False, None
                         try:
                             submission_url = urlparse(next_sub['link_or_file'])
-                            s3_endpoint = urlparse(s3_client.endpoint_url)
+                            s3_endpoint_hostname = urlparse(s3_client.endpoint_url).hostname
 
-                            expected_netloc = f"{s3_client.bucket_name}.{s3_endpoint.netloc}"
-
-                            if submission_url.netloc == expected_netloc:
+                            # This is more robust. It handles cases where the endpoint is a base domain
+                            # or a bucket-specific domain by checking if the submission URL's
+                            # hostname ends with the configured S3 endpoint's hostname.
+                            if submission_url.hostname and s3_endpoint_hostname and submission_url.hostname.endswith(s3_endpoint_hostname):
                                 is_s3_file = True
                                 object_name = submission_url.path.lstrip('/')
-                        except Exception:
-                            # If parsing fails, it's not a valid URL, so not an S3 file.
+                        except (ValueError, TypeError):
+                            # If parsing fails, it's not a valid URL.
                             pass
-                        # --- END ROBUST S3 URL CHECK ---
 
                         if is_s3_file and object_name:
-                            file_bytes = await s3_client.download_file_as_bytes(object_name)
-                            if file_bytes:
-                                import io
-                                filename = object_name.split('/')[-1]
-                                discord_file = discord.File(io.BytesIO(file_bytes), filename=filename)
-                                await channel.send(announcement, file=discord_file)
+                            if not channel.permissions_for(interaction.guild.me).attach_files:
+                                announcement_status = f"❌ I don't have permission to attach files in {channel.mention}."
                             else:
-                                await channel.send(f"{announcement}\n(Error: Could not retrieve file from storage)")
+                                file_bytes = await s3_client.download_file_as_bytes(object_name)
+                                if file_bytes:
+                                    import io
+                                    discord_file = discord.File(io.BytesIO(file_bytes), filename=object_name.split('/')[-1])
+                                    await channel.send(announcement, file=discord_file)
+                                    announcement_status = f"✅ Successfully sent announcement with file to {channel.mention}."
+                                else:
+                                    await channel.send(f"{announcement}\n(Error: Could not retrieve file from storage)")
+                                    announcement_status = f"⚠️ Sent announcement to {channel.mention}, but failed to download the file from S3."
                         else:
                             await channel.send(f"{announcement}\n{next_sub['link_or_file']}")
+                            announcement_status = f"✅ Successfully sent announcement with link to {channel.mention}."
                     else:
                         await channel.send(f"{announcement}\n{next_sub['link_or_file']}")
+                        announcement_status = f"✅ Successfully sent announcement with link to {channel.mention} (S3 client not configured)."
 
             embed = discord.Embed(
                 title="🎵 Now Playing - Moved to Calls Played",
@@ -296,6 +305,8 @@ class AdminCog(commands.Cog):
 
             if next_sub.get('note'):
                 embed.add_field(name="Note", value=next_sub['note'], inline=False)
+
+            embed.add_field(name="📢 Announcement Status", value=announcement_status, inline=False)
 
             embed.set_footer(text=f"Submitted on {next_sub['submission_time']} | Luxurious Radio By Emerald Beats")
             
