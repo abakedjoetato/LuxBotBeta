@@ -23,7 +23,7 @@ class ReviewerQueueCog(commands.Cog):
         self.reviewer_queue_task.cancel()
 
     @app_commands.command(name="setreviewerchannel", description="[ADMIN] Sets the channel for the detailed reviewer queue.")
-    @commands.has_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def set_reviewer_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """Sets the channel for the reviewer queue message."""
         await self.db.set_bot_config('reviewer_queue_channel_id', channel_id=channel.id)
