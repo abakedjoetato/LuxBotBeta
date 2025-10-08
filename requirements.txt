@@ -1,4 +1,5 @@
 discord.py>=2.3.2
-aiosqlite>=0.19.0
 python-dotenv>=1.0.0
 TikTokLive>=2.2.1
+asyncpg>=0.27.0
+psycopg2-binary>=2.9.6

@@ -29,7 +29,7 @@ logging.basicConfig(
 class MusicQueueBot(commands.Bot):
     """Main Discord bot class with music queue functionality"""
 
-    def __init__(self):
+    def __init__(self, dsn: str):
         # Define intents
         intents = discord.Intents.default()
         intents.guilds = True
@@ -39,7 +39,7 @@ class MusicQueueBot(commands.Bot):
         super().__init__(command_prefix='!', intents=intents, help_command=None)
 
         # Initialize database
-        self.db = Database()
+        self.db = Database(dsn=dsn)
         self.initial_startup = True
         self.settings_cache = {}
         self.tiktok_client = None
@@ -68,8 +68,9 @@ class MusicQueueBot(commands.Bot):
 
         await self._send_trace("Loading cogs...")
         cogs_to_load = [
-            'cogs.queue_view', 'cogs.submission_cog', 'cogs.queue_cog',
-            'cogs.admin_cog', 'cogs.moderation_cog', 'cogs.tiktok_cog'
+            'cogs.submission_cog',
+            'cogs.admin_cog', 'cogs.moderation_cog', 'cogs.tiktok_cog',
+            'cogs.user_cog', 'cogs.live_queue_cog'
         ]
         for cog in cogs_to_load:
             try:
@@ -172,25 +173,28 @@ class MusicQueueBot(commands.Bot):
             await ctx.send(f"An error occurred: {str(error)}")
 
 async def main():
-    """Main function to run the bot"""
-    # Force a new commit to trigger a reboot
-    # Check for bot token
+    """Main function to run the bot."""
+    # Check for required environment variables
     token = os.getenv('DISCORD_BOT_TOKEN')
+    dsn = os.getenv('DATABASE_URL')
+
     if not token:
-        logging.error("DISCORD_BOT_TOKEN environment variable not found!")
-        logging.info("Please set your Discord bot token in the environment variables.")
-        logging.info("You can get a bot token from https://discord.com/developers/applications")
+        logging.critical("DISCORD_BOT_TOKEN environment variable not found! The bot cannot start.")
+        return
+    if not dsn:
+        logging.critical("DATABASE_URL environment variable not found! The bot cannot start.")
         return
 
     # Create and run bot
-    bot = MusicQueueBot()
+    bot = MusicQueueBot(dsn=dsn)
 
     try:
         await bot.start(token)
     except Exception as e:
-        logging.error(f"Bot failed to start: {e}")
+        logging.critical(f"Bot failed to start: {e}", exc_info=True)
     finally:
-        await bot.close()
+        if not bot.is_closed():
+            await bot.close()
 
 if __name__ == "__main__":
     # Run the bot

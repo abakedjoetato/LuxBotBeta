@@ -1,13 +1,14 @@
 """
 Database module for Discord Music Queue Bot
-Handles SQLite operations for submissions and queue management
+Handles PostgreSQL operations for submissions and queue management using asyncpg.
 """
 
-import aiosqlite
+import asyncpg
 import asyncio
 import os
 import random
-from typing import List, Dict, Optional, Any
+import logging
+from typing import List, Dict, Optional, Any, Tuple
 from enum import Enum
 
 class QueueLine(Enum):
@@ -19,525 +20,329 @@ class QueueLine(Enum):
     TWENTYFIVEPLUSSKIP = "25+ Skip"
     FREE = "Free"
     PENDING_SKIPS = "Pending Skips"
-    CALLS_PLAYED = "Calls Played"
+    SONGS_PLAYED = "Songs Played" # Renamed from "Calls Played"
 
 class Database:
-    """Async SQLite database handler for the music queue bot"""
+    """Async PostgreSQL database handler for the music queue bot"""
 
-    def __init__(self, db_path: str = "music_queue.db"):
-        self.db_path = db_path
+    def __init__(self, dsn: str):
+        self.dsn = dsn
+        self._pool: Optional[asyncpg.Pool] = None
 
     async def initialize(self):
-        """Initialize database tables"""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS submissions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    public_id TEXT,
-                    user_id INTEGER NOT NULL,
-                    username TEXT NOT NULL,
-                    artist_name TEXT NOT NULL,
-                    song_name TEXT NOT NULL,
-                    link_or_file TEXT,
-                    queue_line TEXT NOT NULL,
-                    submission_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    position INTEGER DEFAULT 0,
-                    played_time DATETIME,
-                    note TEXT,
-                    tiktok_username TEXT
-                )
-            """)
+        """Initialize database connection pool and create tables if they don't exist."""
+        if not self._pool:
+            try:
+                self._pool = await asyncpg.create_pool(self.dsn, min_size=5, max_size=10)
+                logging.info("Database pool created.")
+            except Exception as e:
+                logging.critical(f"Could not connect to PostgreSQL database: {e}", exc_info=True)
+                raise
 
-            # For existing databases, add columns if they don't exist
-            async with db.execute("PRAGMA table_info(submissions)") as cursor:
-                columns = [row[1] for row in await cursor.fetchall()]
-            if 'played_time' not in columns:
-                await db.execute("ALTER TABLE submissions ADD COLUMN played_time DATETIME")
-            if 'public_id' not in columns:
-                await db.execute("ALTER TABLE submissions ADD COLUMN public_id TEXT")
-                await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_public_id ON submissions (public_id)")
-            if 'note' not in columns:
-                await db.execute("ALTER TABLE submissions ADD COLUMN note TEXT")
-            if 'tiktok_username' not in columns:
-                await db.execute("ALTER TABLE submissions ADD COLUMN tiktok_username TEXT")
-            if 'live_watch_score' not in columns:
-                await db.execute("ALTER TABLE submissions ADD COLUMN live_watch_score REAL DEFAULT 0")
-            if 'live_interaction_score' not in columns:
-                await db.execute("ALTER TABLE submissions ADD COLUMN live_interaction_score REAL DEFAULT 0")
-            if 'total_score' not in columns:
-                await db.execute("ALTER TABLE submissions ADD COLUMN total_score REAL DEFAULT 0")
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                # --- New Schema ---
+                # live_sessions to track each live stream
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS live_sessions (
+                        id SERIAL PRIMARY KEY,
+                        tiktok_username TEXT NOT NULL,
+                        start_time TIMESTAMPTZ DEFAULT NOW(),
+                        end_time TIMESTAMPTZ
+                    );
+                """)
 
-            # Populate public_id for existing rows
-            async with db.execute("SELECT id FROM submissions WHERE public_id IS NULL") as cursor:
-                rows_to_update = await cursor.fetchall()
-                for row in rows_to_update:
-                    submission_id = row[0]
-                    public_id = await self._generate_unique_submission_id(db)
-                    await db.execute("UPDATE submissions SET public_id = ? WHERE id = ?", (public_id, submission_id))
+                # tiktok_accounts to store all seen tiktok users
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS tiktok_accounts (
+                        handle_id SERIAL PRIMARY KEY,
+                        handle_name TEXT UNIQUE NOT NULL,
+                        first_seen TIMESTAMPTZ DEFAULT NOW(),
+                        last_seen TIMESTAMPTZ DEFAULT NOW(),
+                        linked_discord_id BIGINT
+                    );
+                """)
 
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS channel_settings (
-                    queue_line TEXT PRIMARY KEY,
-                    channel_id INTEGER,
-                    pinned_message_id INTEGER
-                )
-            """)
+                # tiktok_interactions for logging all interactions
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS tiktok_interactions (
+                        id SERIAL PRIMARY KEY,
+                        session_id INTEGER REFERENCES live_sessions(id) ON DELETE CASCADE,
+                        tiktok_account_id INTEGER REFERENCES tiktok_accounts(handle_id) ON DELETE SET NULL,
+                        interaction_type TEXT NOT NULL, -- 'like', 'comment', 'share', 'gift', 'follow'
+                        value TEXT, -- e.g., comment text or gift name
+                        coin_value INTEGER,
+                        timestamp TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """)
 
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS bot_settings (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                )
-            """)
-            # Add default settings
-            await db.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES ('free_line_closed', '0')")
+                # Submissions table now serves as a permanent historical record
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS submissions (
+                        id SERIAL PRIMARY KEY,
+                        public_id TEXT UNIQUE NOT NULL,
+                        user_id BIGINT NOT NULL,
+                        username TEXT NOT NULL,
+                        artist_name TEXT NOT NULL,
+                        song_name TEXT NOT NULL,
+                        link_or_file TEXT,
+                        queue_line TEXT, -- Can be NULL if not in a queue
+                        submission_time TIMESTAMPTZ DEFAULT NOW(),
+                        played_time TIMESTAMPTZ,
+                        note TEXT,
+                        tiktok_username TEXT, -- Storing the handle at time of submission for context
+                        total_score REAL DEFAULT 0 -- This will be dynamically updated
+                    );
+                """)
 
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS submission_channel (
-                    id INTEGER PRIMARY KEY,
-                    channel_id INTEGER UNIQUE
-                )
-            """)
+                # user_points table for engagement points
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS user_points (
+                        user_id BIGINT PRIMARY KEY,
+                        points INTEGER DEFAULT 0 NOT NULL
+                    );
+                """)
 
-            await db.execute("DROP TABLE IF EXISTS submission_status")
+                # bot_config table for all bot settings
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS bot_config (
+                        key TEXT PRIMARY KEY,
+                        value TEXT,
+                        channel_id BIGINT,
+                        message_id BIGINT
+                    );
+                """)
+                await conn.execute("INSERT INTO bot_config (key, value) VALUES ('free_line_closed', '0') ON CONFLICT (key) DO NOTHING;")
 
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS tiktok_handles (
-                    user_id INTEGER PRIMARY KEY,
-                    tiktok_username TEXT NOT NULL
-                )
-            """)
+                # queue_config to map queues to channels (for admin views, etc)
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS queue_config (
+                        queue_line TEXT PRIMARY KEY,
+                        channel_id BIGINT,
+                        pinned_message_id BIGINT
+                    );
+                """)
 
-            await db.commit()
+        logging.info("Database initialized successfully.")
 
-    async def _generate_unique_submission_id(self, db: aiosqlite.Connection) -> str:
+    @property
+    def pool(self) -> asyncpg.Pool:
+        if self._pool is None:
+            raise ConnectionError("Database pool is not initialized. Call .initialize() first.")
+        return self._pool
+
+    async def _generate_unique_submission_id(self, conn: asyncpg.Connection) -> str:
         """Generate a unique 6-digit random string for a submission ID."""
         while True:
             new_id = f"{random.randint(0, 999999):06d}"
-            async with db.execute("SELECT 1 FROM submissions WHERE public_id = ?", (new_id,)) as cursor:
-                if await cursor.fetchone() is None:
-                    return new_id
+            if not await conn.fetchval("SELECT 1 FROM submissions WHERE public_id = $1", new_id):
+                return new_id
 
     async def add_submission(self, user_id: int, username: str, artist_name: str,
                            song_name: str, link_or_file: str, queue_line: str,
                            note: Optional[str] = None) -> str:
-        """Add a new submission to the database, automatically attaching the user's saved TikTok handle."""
-        async with aiosqlite.connect(self.db_path) as db:
-            # Get the user's saved TikTok handle
-            async with db.execute("SELECT tiktok_username FROM tiktok_handles WHERE user_id = ?", (user_id,)) as cursor:
-                row = await cursor.fetchone()
-                tiktok_username = row[0] if row else None
+        """Add a new submission to the database."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                tiktok_username = await conn.fetchval(
+                    "SELECT ta.handle_name FROM tiktok_accounts ta WHERE ta.linked_discord_id = $1 LIMIT 1", user_id
+                )
+                user_points = await conn.fetchval("SELECT points FROM user_points WHERE user_id = $1", user_id) or 0
+                public_id = await self._generate_unique_submission_id(conn)
+                await conn.execute("""
+                    INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_username, total_score)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                """, public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_username, user_points)
+                return public_id
 
-            public_id = await self._generate_unique_submission_id(db)
-            await db.execute("""
-                INSERT INTO submissions (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_username)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (public_id, user_id, username, artist_name, song_name, link_or_file, queue_line, note, tiktok_username))
-
-            await db.commit()
-            return public_id
-
-    async def get_user_submissions(self, user_id: int) -> List[Dict[str, Any]]:
-        """Get all submissions for a specific user"""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM submissions WHERE user_id = ? ORDER BY submission_time ASC", (user_id,)) as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
+    async def get_user_submissions_history(self, user_id: int, limit: int = 25) -> List[Dict[str, Any]]:
+        """Get the most recent submissions for a specific user from their history."""
+        query = "SELECT * FROM submissions WHERE user_id = $1 ORDER BY submission_time DESC LIMIT $2"
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, user_id, limit)
+            return [dict(row) for row in rows]
 
     async def get_queue_submissions(self, queue_line: str) -> List[Dict[str, Any]]:
-        """
-        Get all submissions for a specific queue line.
-        Sorts "Calls Played" by played time (most recent first).
-        Sorts "Free" line by total_score (desc) and then submission_time (asc).
-        Sorts other lines by submission_time (oldest first).
-        """
-        if queue_line == QueueLine.CALLS_PLAYED.value:
-            query = "SELECT * FROM submissions WHERE queue_line = ? AND played_time IS NOT NULL ORDER BY played_time DESC"
+        """Get all submissions for a specific queue line."""
+        if queue_line == QueueLine.SONGS_PLAYED.value:
+            query = "SELECT * FROM submissions WHERE queue_line = $1 AND played_time IS NOT NULL ORDER BY played_time DESC"
         elif queue_line == QueueLine.FREE.value:
-            query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY total_score DESC, submission_time ASC"
+            query = "SELECT s.*, u.points FROM submissions s LEFT JOIN user_points u ON s.user_id = u.user_id WHERE s.queue_line = $1 ORDER BY u.points DESC, s.submission_time ASC"
         else:
-            query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC"
+            query = "SELECT * FROM submissions WHERE queue_line = $1 ORDER BY submission_time ASC"
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, queue_line)
+            return [dict(row) for row in rows]
 
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(query, (queue_line,)) as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
-
-    async def get_queue_submissions_paginated(self, queue_line: str, page: int, per_page: int) -> List[Dict[str, Any]]:
-        """
-        Get submissions for a specific queue line with pagination.
-        Sorts "Calls Played" by played time (most recent first).
-        Sorts "Free" line by total_score (desc) and then submission_time (asc).
-        Sorts other lines by submission_time (oldest first).
-        """
-        offset = (page - 1) * per_page
-        if queue_line == QueueLine.CALLS_PLAYED.value:
-            query = "SELECT * FROM submissions WHERE queue_line = ? AND played_time IS NOT NULL ORDER BY played_time DESC LIMIT ? OFFSET ?"
-        elif queue_line == QueueLine.FREE.value:
-            query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY total_score DESC, submission_time ASC LIMIT ? OFFSET ?"
-        else:
-            query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT ? OFFSET ?"
-
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(query, (queue_line, per_page, offset)) as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
-
-    async def get_queue_submission_count(self, queue_line: str) -> int:
-        """Get total count of submissions in a specific queue line"""
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT COUNT(*) FROM submissions WHERE queue_line = ?", (queue_line,)) as cursor:
-                result = await cursor.fetchone()
-                return result[0] if result else 0
-
-    async def remove_submission(self, public_id: str) -> Optional[str]:
-        """Remove a submission by public ID and return its original queue line."""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("BEGIN"):
-                async with db.execute("SELECT queue_line FROM submissions WHERE public_id = ?", (public_id,)) as cursor:
-                    row = await cursor.fetchone()
-                    if not row:
-                        return None
-
-                original_line = row['queue_line']
-
-                cursor = await db.execute("DELETE FROM submissions WHERE public_id = ?", (public_id,))
-                if cursor.rowcount == 0:
-                    await db.rollback()
-                    return None
-
-            await db.commit()
-            return original_line
-
-    async def move_submission(self, public_id: str, target_line: str) -> Optional[str]:
-        """Move a submission to a different queue line, update its timestamp, and return its original queue line."""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("BEGIN"):
-                async with db.execute("SELECT queue_line FROM submissions WHERE public_id = ?", (public_id,)) as cursor:
-                    row = await cursor.fetchone()
-                    if not row:
-                        return None
-                original_line = row['queue_line']
-
-                if original_line == target_line:
-                    return original_line
-
-                cursor = await db.execute("UPDATE submissions SET queue_line = ?, submission_time = CURRENT_TIMESTAMP WHERE public_id = ?", (target_line, public_id))
-                if cursor.rowcount == 0:
-                    await db.rollback()
-                    return None
-
-            await db.commit()
-            return original_line
-
-    async def get_next_submission(self) -> Optional[Dict[str, Any]]:
-        """Get the next submission following priority order, excluding Pending Skips."""
+    async def take_next_to_songs_played(self) -> Optional[Dict[str, Any]]:
+        """Atomically find, update, and return the next submission to be played."""
         priority_order = [
-            QueueLine.TWENTYFIVEPLUSSKIP.value,
-            QueueLine.TWENTYSKIP.value,
-            QueueLine.FIFTEENSKIP.value,
-            QueueLine.TENSKIP.value,
-            QueueLine.FIVESKIP.value,
-            QueueLine.FREE.value
+            QueueLine.TWENTYFIVEPLUSSKIP.value, QueueLine.TWENTYSKIP.value,
+            QueueLine.FIFTEENSKIP.value, QueueLine.TENSKIP.value,
+            QueueLine.FIVESKIP.value, QueueLine.FREE.value
         ]
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                for queue_line in priority_order:
+                    if queue_line == QueueLine.FREE.value:
+                        find_query = "SELECT s.id, s.queue_line FROM submissions s LEFT JOIN user_points u ON s.user_id = u.user_id WHERE s.queue_line = $1 ORDER BY u.points DESC, s.submission_time ASC LIMIT 1 FOR UPDATE"
+                    else:
+                        find_query = "SELECT id, queue_line FROM submissions WHERE queue_line = $1 ORDER BY submission_time ASC LIMIT 1 FOR UPDATE"
 
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            for queue_line in priority_order:
-                # Special handling for the Free line to use the new scoring system
-                if queue_line == QueueLine.FREE.value:
-                    query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY total_score DESC, submission_time ASC LIMIT 1"
-                else:
-                    query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT 1"
-
-                async with db.execute(query, (queue_line,)) as cursor:
-                    row = await cursor.fetchone()
-                    if row:
-                        return dict(row)
+                    submission_to_move = await conn.fetchrow(find_query, queue_line)
+                    if submission_to_move:
+                        updated_sub = await conn.fetchrow(
+                            "UPDATE submissions SET queue_line = $1, played_time = NOW() WHERE id = $2 RETURNING *",
+                            QueueLine.SONGS_PLAYED.value, submission_to_move['id']
+                        )
+                        if updated_sub:
+                            updated_dict = dict(updated_sub)
+                            updated_dict['original_line'] = submission_to_move['queue_line']
+                            return updated_dict
         return None
-
-    async def take_next_to_calls_played(self) -> Optional[Dict[str, Any]]:
-        """Atomically move the next submission to Calls Played line and ensure commit."""
-        priority_order = [
-            QueueLine.TWENTYFIVEPLUSSKIP.value,
-            QueueLine.TWENTYSKIP.value,
-            QueueLine.FIFTEENSKIP.value,
-            QueueLine.TENSKIP.value,
-            QueueLine.FIVESKIP.value,
-            QueueLine.FREE.value
-        ]
-
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            for queue_line in priority_order:
-                # Special handling for the Free line to use the new scoring system
-                if queue_line == QueueLine.FREE.value:
-                    query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY total_score DESC, submission_time ASC LIMIT 1"
-                else:
-                    query = "SELECT * FROM submissions WHERE queue_line = ? ORDER BY submission_time ASC LIMIT 1"
-
-                async with db.execute(query, (queue_line,)) as cursor:
-                    row = await cursor.fetchone()
-
-                if row:
-                    submission_dict = dict(row)
-                    original_line = submission_dict['queue_line']
-
-                    await db.execute(
-                        "UPDATE submissions SET queue_line = ?, played_time = CURRENT_TIMESTAMP WHERE id = ?",
-                        (QueueLine.CALLS_PLAYED.value, submission_dict['id'])
-                    )
-                    await db.commit()
-
-                    submission_dict['original_line'] = original_line
-                    return submission_dict
-        return None
-
-    async def set_channel_for_line(self, queue_line: str, channel_id: int, pinned_message_id: Optional[int] = None):
-        """Set the channel for a queue line"""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("INSERT OR REPLACE INTO channel_settings (queue_line, channel_id, pinned_message_id) VALUES (?, ?, ?)", (queue_line, channel_id, pinned_message_id))
-            await db.commit()
-
-    async def get_channel_for_line(self, queue_line: str) -> Optional[Dict[str, Any]]:
-        """Get channel settings for a queue line"""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM channel_settings WHERE queue_line = ?", (queue_line,)) as cursor:
-                row = await cursor.fetchone()
-                return dict(row) if row else None
-
-    async def update_pinned_message(self, queue_line: str, pinned_message_id: int):
-        """Update the pinned message ID for a queue line"""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE channel_settings SET pinned_message_id = ? WHERE queue_line = ?", (pinned_message_id, queue_line))
-            await db.commit()
-
-    async def get_user_submission_count_in_line(self, user_id: int, queue_line: str) -> int:
-        """Get count of user's submissions in a specific line"""
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT COUNT(*) FROM submissions WHERE user_id = ? AND queue_line = ?", (user_id, queue_line)) as cursor:
-                result = await cursor.fetchone()
-                return result[0] if result else 0
-
-    async def set_submission_channel(self, channel_id: int):
-        """Set the submission channel"""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("INSERT OR REPLACE INTO submission_channel (id, channel_id) VALUES (1, ?)", (channel_id,))
-            await db.commit()
-
-    async def get_submission_channel(self) -> Optional[int]:
-        """Get the submission channel ID"""
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT channel_id FROM submission_channel WHERE id = 1") as cursor:
-                row = await cursor.fetchone()
-                return row[0] if row else None
-
-    async def set_free_line_status(self, is_open: bool):
-        """Set whether the Free line is open or closed."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('free_line_closed', ?)", ('0' if is_open else '1',))
-            await db.commit()
-
-    async def is_free_line_open(self) -> bool:
-        """Check if the Free line is currently open."""
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT value FROM bot_settings WHERE key = 'free_line_closed'") as cursor:
-                row = await cursor.fetchone()
-                # Default to open if not set
-                return row[0] == '0' if row else True
-
-    async def clear_free_line(self) -> int:
-        """Clear all submissions from the Free line and return count of cleared submissions"""
-        async with aiosqlite.connect(self.db_path) as db:
-            count = 0
-            async with db.execute("BEGIN"):
-                async with db.execute("SELECT COUNT(*) FROM submissions WHERE queue_line = ?", (QueueLine.FREE.value,)) as cursor:
-                    count_result = await cursor.fetchone()
-                    count = count_result[0] if count_result else 0
-                
-                if count > 0:
-                    await db.execute("DELETE FROM submissions WHERE queue_line = ?", (QueueLine.FREE.value,))
-
-            await db.commit()
-            return count
-
-    async def set_now_playing_channel(self, channel_id: int):
-        """Set the now playing channel."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('now_playing_channel_id', ?)", (str(channel_id),))
-            await db.commit()
-
-    async def get_now_playing_channel(self) -> Optional[int]:
-        """Get the now playing channel ID"""
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT value FROM bot_settings WHERE key = 'now_playing_channel_id'") as cursor:
-                row = await cursor.fetchone()
-                if row and row[0]:
-                    try:
-                        return int(row[0])
-                    except (ValueError, TypeError):
-                        return None
-        return None
-
-    async def clear_stale_queue_lines(self) -> int:
-        """Removes queue lines from channel_settings that are no longer in the QueueLine enum. Returns the number of lines removed."""
-        async with aiosqlite.connect(self.db_path) as db:
-            valid_queue_lines = [ql.value for ql in QueueLine]
-
-            placeholders = ', '.join('?' for _ in valid_queue_lines)
-
-            # Use a transaction to ensure atomicity
-            async with db.execute("BEGIN"):
-                delete_query = f"DELETE FROM channel_settings WHERE queue_line NOT IN ({placeholders})"
-                cursor = await db.execute(delete_query, valid_queue_lines)
-                rows_deleted = cursor.rowcount
-
-            await db.commit()
-            print(f"DATABASE: Removed {rows_deleted} stale queue lines.")
-            return rows_deleted
 
     async def get_submission_by_id(self, public_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific submission by public ID"""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM submissions WHERE public_id = ?", (public_id,)) as cursor:
-                row = await cursor.fetchone()
-                return dict(row) if row else None
+        query = "SELECT * FROM submissions WHERE public_id = $1"
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query, public_id)
+            return dict(row) if row else None
 
-    async def set_bookmark_channel(self, channel_id: int):
-        """Set the bookmark channel. Raises an exception on failure."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bookmark_channel_id', ?)", (str(channel_id),))
-            await db.commit()
-
-    async def get_bookmark_channel(self) -> Optional[int]:
-        """Get the bookmark channel ID"""
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT value FROM bot_settings WHERE key = 'bookmark_channel_id'") as cursor:
-                row = await cursor.fetchone()
-                if row and row[0]:
-                    try:
-                        return int(row[0])
-                    except (ValueError, TypeError):
-                        return None
-        return None
-
-    async def get_all_channel_settings(self) -> List[Dict[str, Any]]:
-        """Get all configured queue line channels."""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM channel_settings ORDER BY queue_line") as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
-
-    async def get_all_bot_settings(self) -> Dict[str, Any]:
-        """Get all settings from the bot_settings table."""
-        settings = {}
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT key, value FROM bot_settings") as cursor:
-                async for row in cursor:
-                    key, value = row
-                    # Try to convert to int if possible, otherwise keep as string
-                    if value is not None:
-                        try:
-                            settings[key] = int(value)
-                        except (ValueError, TypeError):
-                            settings[key] = value
-                    else:
-                        settings[key] = None
-        return settings
-
-    async def update_free_line_scores(self, viewer_scores: Dict[str, float]):
+    async def check_duplicate_submission(self, artist_name: str, song_name: str) -> bool:
+        """Checks if an identical song is already in any active queue, regardless of user."""
+        active_queues = [q.value for q in QueueLine if q not in (QueueLine.SONGS_PLAYED, QueueLine.PENDING_SKIPS)]
+        query = """
+            SELECT 1 FROM submissions
+            WHERE lower(artist_name) = lower($1) AND lower(song_name) = lower($2) AND queue_line = ANY($3::text[])
+            LIMIT 1;
         """
-        Recalculates and updates the watch time and total scores for all submissions in the Free line.
-        viewer_scores: A dictionary mapping tiktok_username to total watch time in minutes.
+        async with self.pool.acquire() as conn:
+            exists = await conn.fetchval(query, artist_name, song_name, active_queues)
+            return exists is not None
+
+    async def reset_user_points(self, user_id: int):
+        """Resets a user's engagement points to zero."""
+        query = "INSERT INTO user_points (user_id, points) VALUES ($1, 0) ON CONFLICT (user_id) DO UPDATE SET points = 0;"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, user_id)
+
+    async def add_points_to_user(self, user_id: int, points_to_add: int):
+        """Adds points to a user's score. Creates the user if they don't exist."""
+        query = """
+            INSERT INTO user_points (user_id, points)
+            VALUES ($1, $2)
+            ON CONFLICT (user_id) DO UPDATE
+            SET points = user_points.points + $2;
         """
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            # Use a transaction for bulk updates
-            async with db.execute("BEGIN"):
-                # Get all free line submissions
-                async with db.execute("SELECT id, tiktok_username, live_interaction_score FROM submissions WHERE queue_line = ?", (QueueLine.FREE.value,)) as cursor:
-                    free_line_subs = await cursor.fetchall()
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, user_id, points_to_add)
 
-                # Calculate and update scores for each submission
-                for sub in free_line_subs:
-                    watch_time = viewer_scores.get(sub['tiktok_username'], 0)
-                    live_watch_score = watch_time * 1.0  # 1 point per minute watched
-                    total_score = live_watch_score + sub['live_interaction_score']
-
-                    await db.execute(
-                        "UPDATE submissions SET live_watch_score = ?, total_score = ? WHERE id = ?",
-                        (live_watch_score, total_score, sub['id'])
-                    )
-            await db.commit()
-
-    async def add_interaction_score(self, public_id: str, points: float):
-        """Adds points to a submission's interaction score and updates the total score."""
-        async with aiosqlite.connect(self.db_path) as db:
-            # Atomically update the scores
-            await db.execute(
-                """
-                UPDATE submissions
-                SET
-                    live_interaction_score = live_interaction_score + ?,
-                    total_score = total_score + ?
-                WHERE public_id = ?
-                """,
-                (points, points, public_id)
-            )
-            await db.commit()
-
-    async def find_active_submission_by_tiktok_user(self, tiktok_username: str) -> Optional[Dict[str, Any]]:
+    async def sync_submission_scores(self):
+        """Updates the total_score for all submissions in the Free queue from the user_points table."""
+        query = """
+            UPDATE submissions s
+            SET total_score = u.points
+            FROM user_points u
+            WHERE s.user_id = u.user_id AND s.queue_line = 'Free';
         """
-        Finds the most recent submission from a TikTok user that is eligible for a reward.
-        An eligible submission is one that is not already in a priority queue or played.
-        """
-        eligible_lines = [QueueLine.FREE.value, QueueLine.PENDING_SKIPS.value]
-        placeholders = ', '.join('?' for _ in eligible_lines)
+        async with self.pool.acquire() as conn:
+            await conn.execute(query)
+
+    async def get_all_active_queue_songs(self) -> List[Dict[str, Any]]:
+        """Gets all songs from all active queues, sorted by priority and time."""
+        priority_order_case = "CASE queue_line WHEN '25+ Skip' THEN 1 WHEN '20 Skip' THEN 2 WHEN '15 Skip' THEN 3 WHEN '10 Skip' THEN 4 WHEN '5 Skip' THEN 5 WHEN 'Free' THEN 6 ELSE 7 END"
+        active_queues = [q.value for q in QueueLine if q not in (QueueLine.SONGS_PLAYED, QueueLine.PENDING_SKIPS)]
         query = f"""
-            SELECT * FROM submissions
-            WHERE tiktok_username = ? AND queue_line IN ({placeholders})
-            ORDER BY submission_time DESC
-            LIMIT 1
+            SELECT s.artist_name, s.song_name, s.queue_line
+            FROM submissions s
+            LEFT JOIN user_points u ON s.user_id = u.user_id
+            WHERE s.queue_line = ANY($1::text[])
+            ORDER BY {priority_order_case}, u.points DESC NULLS LAST, s.submission_time ASC;
         """
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(query, (tiktok_username, *eligible_lines)) as cursor:
-                row = await cursor.fetchone()
-                return dict(row) if row else None
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, active_queues)
+            return [dict(row) for row in rows]
 
-    async def set_tiktok_handle(self, user_id: int, tiktok_username: str):
-        """Sets or updates a user's TikTok handle in the database."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "INSERT OR REPLACE INTO tiktok_handles (user_id, tiktok_username) VALUES (?, ?)",
-                (user_id, tiktok_username)
-            )
-            await db.commit()
+    async def upsert_tiktok_account(self, handle_name: str) -> int:
+        """Inserts a TikTok account if it doesn't exist, and updates its last_seen timestamp. Returns the account's handle_id."""
+        query = "INSERT INTO tiktok_accounts (handle_name, last_seen) VALUES ($1, NOW()) ON CONFLICT (handle_name) DO UPDATE SET last_seen = NOW() RETURNING handle_id;"
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(query, handle_name)
 
-    async def get_tiktok_handle(self, user_id: int) -> Optional[str]:
-        """Retrieves a user's saved TikTok handle."""
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT tiktok_username FROM tiktok_handles WHERE user_id = ?", (user_id,)) as cursor:
-                row = await cursor.fetchone()
-                return row[0] if row else None
+    async def log_tiktok_interaction(self, session_id: int, tiktok_account_id: int, interaction_type: str, value: Optional[str] = None, coin_value: Optional[int] = None):
+        """Logs a single TikTok interaction."""
+        query = "INSERT INTO tiktok_interactions (session_id, tiktok_account_id, interaction_type, value, coin_value) VALUES ($1, $2, $3, $4, $5);"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, session_id, tiktok_account_id, interaction_type, value, coin_value)
 
-    async def update_user_submissions_tiktok_handle(self, user_id: int, tiktok_username: str):
-        """Updates the TikTok handle for all of a user's existing, unplayed submissions."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "UPDATE submissions SET tiktok_username = ? WHERE user_id = ? AND queue_line != ?",
-                (tiktok_username, user_id, QueueLine.CALLS_PLAYED.value)
-            )
-            await db.commit()
+    async def link_tiktok_account(self, discord_id: int, tiktok_handle: str) -> Tuple[bool, str]:
+        """Links a TikTok handle to a Discord ID. Returns a success boolean and a message."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                account = await conn.fetchrow("SELECT handle_id, linked_discord_id FROM tiktok_accounts WHERE handle_name = $1", tiktok_handle)
+                if not account:
+                    return False, "This TikTok handle has not been seen on stream yet."
+                if account['linked_discord_id'] and account['linked_discord_id'] != discord_id:
+                    return False, "This TikTok handle is already linked to another Discord user."
+                if account['linked_discord_id'] == discord_id:
+                    return False, "You have already linked this TikTok handle."
+                await conn.execute("UPDATE tiktok_accounts SET linked_discord_id = $1 WHERE handle_id = $2", discord_id, account['handle_id'])
+                return True, f"Successfully linked your Discord account to the TikTok handle `{tiktok_handle}`."
+
+    async def unlink_tiktok_account(self, discord_id: int, tiktok_handle: str) -> Tuple[bool, str]:
+        """Unlinks a TikTok handle from a Discord ID."""
+        async with self.pool.acquire() as conn:
+            account = await conn.fetchrow("SELECT handle_id FROM tiktok_accounts WHERE handle_name = $1 AND linked_discord_id = $2", tiktok_handle, discord_id)
+            if not account:
+                return False, "This TikTok handle is not linked to your account."
+            await conn.execute("UPDATE tiktok_accounts SET linked_discord_id = NULL WHERE handle_id = $1", account['handle_id'])
+            return True, f"Successfully unlinked the TikTok handle `{tiktok_handle}` from your account."
+
+    async def get_linked_tiktok_handles(self, discord_id: int) -> List[str]:
+        """Gets all TikTok handles linked to a Discord ID."""
+        query = "SELECT handle_name FROM tiktok_accounts WHERE linked_discord_id = $1 ORDER BY handle_name;"
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, discord_id)
+            return [row['handle_name'] for row in rows]
+
+    async def start_live_session(self, tiktok_username: str) -> int:
+        """Starts a new live session and returns the session ID."""
+        query = "INSERT INTO live_sessions (tiktok_username) VALUES ($1) RETURNING id;"
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(query, tiktok_username)
+
+    async def end_live_session(self, session_id: int):
+        """Ends a live session by setting the end_time."""
+        query = "UPDATE live_sessions SET end_time = NOW() WHERE id = $1;"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, session_id)
+
+    async def get_live_session_summary(self, session_id: int) -> Dict[str, int]:
+        """Generates a summary of interactions for a given live session."""
+        query = "SELECT interaction_type, COUNT(*) as count FROM tiktok_interactions WHERE session_id = $1 GROUP BY interaction_type;"
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, session_id)
+            summary = {row['interaction_type']: row['count'] for row in rows}
+            gift_value = await conn.fetchval("SELECT SUM(coin_value) FROM tiktok_interactions WHERE session_id = $1 AND interaction_type = 'gift'", session_id)
+            summary['gift_coins'] = gift_value or 0
+            return summary
+
+    async def get_discord_id_from_handle(self, tiktok_handle: str) -> Optional[int]:
+        """Retrieves the linked Discord user ID for a given TikTok handle."""
+        query = "SELECT linked_discord_id FROM tiktok_accounts WHERE handle_name = $1"
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(query, tiktok_handle)
+
+    async def find_gift_rewardable_submission(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Finds the most recent submission from a user that can be rewarded by a gift."""
+        non_rewardable_queues = [q.value for q in QueueLine if q != QueueLine.FREE]
+        query = "SELECT * FROM submissions WHERE user_id = $1 AND (queue_line IS NULL OR NOT (queue_line = ANY($2::text[]))) ORDER BY submission_time DESC LIMIT 1;"
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query, user_id, non_rewardable_queues)
+            return dict(row) if row else None
 
     async def close(self):
-        """Close database connection"""
-        pass
+        """Close database connection pool."""
+        if self._pool:
+            await self._pool.close()
+            logging.info("Database pool closed.")
