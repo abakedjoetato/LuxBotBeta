@@ -61,7 +61,7 @@ class QueueCog(commands.Cog):
                     link_text = f" ([Link]({sub['link_or_file']}))" if sub['link_or_file'].startswith('http') else ""
                     # Format timestamp to show local time
                     timestamp = f"<t:{int(discord.utils.parse_time(sub['submission_time']).timestamp())}:t>"
-                    description += f"**{i}.** #{sub['id']} - {sub['username']} – *{sub['artist_name']} – {sub['song_name']}*{link_text} | {timestamp}\n"
+                    description += f"**{i}.** #{sub['public_id']} - {sub['username']} – *{sub['artist_name']} – {sub['song_name']}*{link_text} | {timestamp}\n"
                 
                 if len(submissions) > 15:
                     description += f"\n*... and {len(submissions) - 15} more submissions*"
@@ -104,7 +104,7 @@ class QueueCog(commands.Cog):
             QueueLine.TENSKIP.value: discord.Color.gold(),
             QueueLine.FIVESKIP.value: discord.Color.yellow(),
             QueueLine.FREE.value: discord.Color.green(),
-            QueueLine.CALLS_PLAYED.value: discord.Color.purple()
+            QueueLine.SONGS_PLAYED.value: discord.Color.purple()
         }
         return colors.get(queue_line, discord.Color.blue())
     
