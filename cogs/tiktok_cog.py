@@ -128,9 +128,10 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
 
         if self.bot.tiktok_client:
             try:
-                await self.bot.tiktok_client.stop()
+                # Use .disconnect() as .stop() is not a valid method
+                await self.bot.tiktok_client.disconnect()
             except Exception as e:
-                logging.error(f"Error stopping TikTok client: {e}", exc_info=True)
+                logging.error(f"Error disconnecting TikTok client: {e}", exc_info=True)
 
         if self._connection_task and not self._connection_task.done():
             self._connection_task.cancel()
