@@ -401,19 +401,36 @@ class SubmissionCog(commands.Cog):
     @app_commands.command(name="setupsubmissionbuttons", description="[ADMIN] Setup submission buttons in current channel")
     @is_admin()
     async def setup_submission_buttons(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="🎵 Music Submission Portal", description="Please follow the instructions for the submission type you are using.", color=discord.Color.blue())
+        """Sets up the submission buttons in the current channel."""
+        await interaction.response.defer(ephemeral=True)
+
+        embed = discord.Embed(
+            title="🎵 Music Submission Portal",
+            description="Please follow the instructions for the submission type you are using.",
+            color=discord.Color.blue()
+        )
         link_instructions = "1. Click 'Submit Link'.\n2. Fill out the form.\n3. Await confirmation."
         file_instructions = "1. Use the `/submitfile` command.\n2. Attach your audio file.\n3. Fill in the options."
+        resubmit_instructions = "1. Click 'Re-submit From History'.\n2. Choose a song from the dropdown.\n3. Await confirmation."
         embed.add_field(name="🔗 Link Submissions", value=link_instructions, inline=False)
         embed.add_field(name="📁 File Submissions", value=file_instructions, inline=False)
+        embed.add_field(name="🔁 Re-submissions", value=resubmit_instructions, inline=False)
+
         view = SubmissionButtonView(self.bot)
-        await interaction.response.send_message(embed=embed, view=view)
-        message = await interaction.original_response()
+
         try:
-            await message.pin()
-            await interaction.followup.send("✅ Submission buttons have been set up and pinned!", ephemeral=True)
-        except discord.Forbidden:
-            await interaction.followup.send("✅ Buttons set up, but I couldn't pin the message.", ephemeral=True)
+            # Send the message to the channel directly
+            message = await interaction.channel.send(embed=embed, view=view)
+
+            # Try to pin the message
+            try:
+                await message.pin()
+                await interaction.followup.send("✅ Submission buttons have been set up and pinned!", ephemeral=True)
+            except discord.Forbidden:
+                await interaction.followup.send("✅ Buttons set up, but I couldn't pin the message. Please check my permissions.", ephemeral=True)
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ An error occurred while setting up buttons: {e}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(SubmissionCog(bot))
