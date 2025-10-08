@@ -374,6 +374,14 @@ class Database:
         """Sets the status of the Free line (open/closed)."""
         await self.set_bot_config('free_line_closed', value='0' if is_open else '1')
 
+    async def is_free_line_open(self) -> bool:
+        """Checks if the Free line is open for submissions."""
+        query = "SELECT value FROM bot_config WHERE key = 'free_line_closed'"
+        async with self.pool.acquire() as conn:
+            status = await conn.fetchval(query)
+            # Returns True if status is '0' (not closed), False otherwise.
+            return status == '0'
+
     async def clear_free_line(self) -> int:
         """Removes all submissions from the 'Free' queue and returns the count of removed submissions."""
         query = "DELETE FROM submissions WHERE queue_line = 'Free' RETURNING id;"
