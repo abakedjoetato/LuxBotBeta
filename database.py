@@ -185,7 +185,8 @@ class Database:
             async with conn.transaction():
                 for queue_line in priority_order:
                     if queue_line == QueueLine.FREE.value:
-                        find_query = "SELECT s.id, s.queue_line FROM submissions s LEFT JOIN user_points u ON s.user_id = u.user_id WHERE s.queue_line = $1 ORDER BY u.points DESC, s.submission_time ASC LIMIT 1 FOR UPDATE"
+                        # Order by the pre-calculated total_score to avoid the problematic JOIN with FOR UPDATE
+                        find_query = "SELECT id, queue_line FROM submissions WHERE queue_line = $1 ORDER BY total_score DESC, submission_time ASC LIMIT 1 FOR UPDATE"
                     else:
                         find_query = "SELECT id, queue_line FROM submissions WHERE queue_line = $1 ORDER BY submission_time ASC LIMIT 1 FOR UPDATE"
 
