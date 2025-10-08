@@ -252,8 +252,8 @@ class Database:
         Gets all songs from all active queues, sorted by priority and time.
         If detailed is True, returns all submission columns.
         """
-        priority_order_case = "CASE queue_line WHEN '25+ Skip' THEN 1 WHEN '20 Skip' THEN 2 WHEN '15 Skip' THEN 3 WHEN '10 Skip' THEN 4 WHEN '5 Skip' THEN 5 WHEN 'Free' THEN 6 ELSE 7 END"
-        active_queues = [q.value for q in QueueLine if q not in (QueueLine.SONGS_PLAYED, QueueLine.PENDING_SKIPS)]
+        priority_order_case = "CASE queue_line WHEN '25+ Skip' THEN 1 WHEN '20 Skip' THEN 2 WHEN '15 Skip' THEN 3 WHEN '10 Skip' THEN 4 WHEN '5 Skip' THEN 5 WHEN 'Free' THEN 6 WHEN 'Pending Skips' THEN 7 ELSE 8 END"
+        active_queues = [q.value for q in QueueLine if q not in (QueueLine.SONGS_PLAYED,)]
 
         select_columns = "s.*" if detailed else "s.artist_name, s.song_name, s.queue_line, s.username"
 
