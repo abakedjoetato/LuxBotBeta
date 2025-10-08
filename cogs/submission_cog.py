@@ -207,7 +207,8 @@ class SubmissionButtonView(discord.ui.View):
             "Attach your audio file `.mp3`, `.m4a`, etc. (No `.wav` files).\n"
             "Fill in the `artist_name` and `song_title` fields and optional note.\n"
             "Hit send!\n"
-            "Answer whether you intend to send a monetary skip - Gift, PP, CA."
+            "Answer whether you intend to send a monetary skip - Gift, PP, CA.\n"
+            "If you haven't linked your TikTok handle please do so, you won't be eligible for interaction-based track boosting if you don't link your TikTok @handle(s) to your Discord account."
         )
         embed = discord.Embed(
             title="📁 How to Submit an Audio File",
@@ -258,7 +259,8 @@ class SubmissionCog(commands.Cog):
             "Attach your audio file `.mp3`, `.m4a`, etc. (No `.wav` files).\n"
             "Fill in the `artist_name` and `song_title` fields and optional note.\n"
             "Hit send!\n"
-            "Answer whether you intend to send a monetary skip - Gift, PP, CA."
+            "Answer whether you intend to send a monetary skip - Gift, PP, CA.\n"
+            "If you haven't linked your TikTok handle please do so, you won't be eligible for interaction-based track boosting if you don't link your TikTok @handle(s) to your Discord account."
         )
         embed.add_field(name="📁 Submit a File", value=file_submission_instructions, inline=False)
         embed.add_field(name="📜 Submit from History", value="Click `Submit from History` to quickly re-submit one of your previously played tracks.", inline=False)
