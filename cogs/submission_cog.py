@@ -175,6 +175,94 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
         view.message = await interaction.original_response()
 
 
+class ResubmissionSelect(discord.ui.Select):
+    def __init__(self, bot, submissions: list):
+        self.bot = bot
+        # Create a map for easy lookup by public_id
+        self.submissions_map = {s['public_id']: s for s in submissions}
+
+        # Sort submissions by most recent first for display, then truncate
+        submissions.sort(key=lambda x: x['submission_time'], reverse=True)
+        if len(submissions) > 25:
+            submissions = submissions[:25]
+
+        options = [
+            discord.SelectOption(
+                label=f"{s['artist_name']} - {s['song_name']}"[:100],
+                description=f"Played on {s['played_time'].strftime('%Y-%m-%d')}" if s.get('played_time') else f"Submitted on {s['submission_time'].strftime('%Y-%m-%d')}",
+                value=s['public_id']
+            ) for s in submissions
+        ]
+
+        super().__init__(placeholder="Choose a past song to re-submit...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        selected_public_id = self.values[0]
+        submission_to_resubmit = self.submissions_map.get(selected_public_id)
+
+        if not submission_to_resubmit:
+            await interaction.followup.send("❌ An error occurred while finding that submission.", ephemeral=True)
+            return
+
+        # Check if the free line is open
+        if not await self.bot.db.is_free_line_open():
+            await interaction.followup.send("❌ Submissions to the Free line are currently closed.", ephemeral=True)
+            return
+
+        # Check if user already has a submission in the free line
+        existing_count = await self.bot.db.get_user_submission_count_in_line(interaction.user.id, QueueLine.FREE.value)
+        if existing_count > 0:
+            await interaction.followup.send("❌ You already have a submission in the Free line.", ephemeral=True)
+            return
+
+        try:
+            new_public_id = await self.bot.db.add_submission(
+                user_id=interaction.user.id,
+                username=interaction.user.display_name,
+                artist_name=submission_to_resubmit['artist_name'],
+                song_name=submission_to_resubmit['song_name'],
+                link_or_file=submission_to_resubmit['link_or_file'],
+                queue_line=QueueLine.FREE.value,
+                note=submission_to_resubmit.get('note')
+            )
+
+            embed = discord.Embed(
+                title="✅ Re-submission Successful!",
+                description=f"Your music has been added to the **Free** line.",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Artist", value=submission_to_resubmit['artist_name'], inline=True)
+            embed.add_field(name="Song", value=submission_to_resubmit['song_name'], inline=True)
+            embed.add_field(name="New Submission ID", value=f"#{new_public_id}", inline=False)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+            queue_view_cog = self.bot.get_cog('QueueViewCog')
+            if queue_view_cog:
+                await queue_view_cog.create_or_update_queue_view(QueueLine.FREE.value)
+
+            # Disable the view after successful submission
+            self.view.stop()
+            await interaction.edit_original_response(content="This re-submission has been processed.", view=None)
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ An error occurred during re-submission: {str(e)}", ephemeral=True)
+
+
+class ResubmissionView(discord.ui.View):
+    def __init__(self, bot, submissions: list):
+        super().__init__(timeout=180)
+        self.message: Optional[discord.WebhookMessage] = None
+        self.add_item(ResubmissionSelect(bot, submissions))
+
+    async def on_timeout(self):
+        if self.message:
+            for item in self.children:
+                item.disabled = True
+            await self.message.edit(content="This re-submission request has timed out.", view=self)
+
+
 class SubmissionButtonView(discord.ui.View):
     def __init__(self, bot):
         super().__init__(timeout=None)
@@ -193,6 +281,25 @@ class SubmissionButtonView(discord.ui.View):
             color=discord.Color.blue()
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Re-submit From History", style=discord.ButtonStyle.success, emoji="🔁", custom_id="resubmit_history_button")
+    async def resubmit_from_history_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        # Fetch user's entire submission history
+        user_submissions = await self.bot.db.get_user_submissions(interaction.user.id)
+
+        if not user_submissions:
+            await interaction.followup.send("You have no past submissions to re-submit.", ephemeral=True)
+            return
+
+        view = ResubmissionView(self.bot, user_submissions)
+        message = await interaction.followup.send(
+            "Please select a song from your history to re-submit to the **Free** line. Only your 25 most recent submissions are shown.",
+            view=view,
+            ephemeral=True
+        )
+        view.message = message
 
 
 class SubmissionCog(commands.Cog):
