@@ -140,13 +140,11 @@ class Database:
 
     async def add_submission(self, user_id: int, username: str, artist_name: str,
                            song_name: str, link_or_file: str, queue_line: str,
-                           note: Optional[str] = None) -> str:
+                           note: Optional[str] = None, tiktok_username: Optional[str] = None) -> str:
         """Add a new submission to the database."""
         async with self.pool.acquire() as conn:
             async with conn.transaction():
-                tiktok_username = await conn.fetchval(
-                    "SELECT ta.handle_name FROM tiktok_accounts ta WHERE ta.linked_discord_id = $1 LIMIT 1", user_id
-                )
+                # The tiktok_username is now passed in directly.
                 user_points = await conn.fetchval("SELECT points FROM user_points WHERE user_id = $1", user_id) or 0
                 public_id = await self._generate_unique_submission_id(conn)
                 await conn.execute("""
