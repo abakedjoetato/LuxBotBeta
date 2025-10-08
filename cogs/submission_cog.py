@@ -217,6 +217,13 @@ class SubmissionCog(commands.Cog):
         note="Optional note for the host"
     )
     async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_name: str, note: Optional[str] = None):
+        if not self.s3_client.is_configured:
+            await interaction.response.send_message(
+                "❌ File submissions are temporarily disabled as the bot's file storage is not configured. Please use a link instead.",
+                ephemeral=True
+            )
+            return
+
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         valid_extensions = ('.mp3', '.m4a', '.flac')
