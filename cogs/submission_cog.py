@@ -19,7 +19,34 @@ CLOUD_STORAGE_DOMAINS = [
     "s3.amazonaws.com", "degoo.com", "disk.yandex.", "tresorit.com", "nordlocker.com"
 ]
 
-class TikTokHandleModal(discord.ui.Modal, title='Link Your TikTok Handle'):
+class SkipQuestionView(discord.ui.View):
+    """Asks the user if their submission is a skip."""
+    def __init__(self, bot, submission_data: dict):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.submission_data = submission_data
+        self.message: Optional[discord.Message] = None
+
+    async def on_timeout(self):
+        if self.message:
+            for item in self.children:
+                item.disabled = True
+            await self.message.edit(content="This submission request has timed out.", view=self)
+
+    @discord.ui.button(label="Yes, it's a skip", style=discord.ButtonStyle.success)
+    async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.submission_data['is_skip'] = True
+        await _begin_submission_process(self.bot, interaction, self.submission_data)
+        self.stop()
+
+    @discord.ui.button(label="No", style=discord.ButtonStyle.grey)
+    async def no_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.submission_data['is_skip'] = False
+        await _begin_submission_process(self.bot, interaction, self.submission_data)
+        self.stop()
+
+
+class TikTokHandleModal(discord.ui.Modal, title='Enter Your TikTok Handle'):
     """Modal for asking user for their TikTok handle."""
     def __init__(self, bot, submission_data: dict):
         super().__init__()
@@ -28,77 +55,32 @@ class TikTokHandleModal(discord.ui.Modal, title='Link Your TikTok Handle'):
 
     handle = discord.ui.TextInput(
         label='Your TikTok @Handle',
-        placeholder='Enter your handle to get points for interactions',
+        placeholder='Enter your handle. This will be saved with the submission.',
         required=True,
         max_length=100
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        # Bypassing validation. Just save the handle and finalize.
         clean_handle = self.handle.value.strip().lstrip('@')
+        self.submission_data['tiktok_username'] = clean_handle
 
-        success, message = await self.bot.db.link_tiktok_account(interaction.user.id, clean_handle)
-
-        if not success:
-            await interaction.followup.send(f"❌ **Linking Failed:** {message}", ephemeral=True)
-            return
-
-        await interaction.followup.send(f"✅ {message} Your submission will now proceed.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True, thinking=True)
         await _finalize_submission(self.bot, interaction, self.submission_data)
-
-class HandlePromptView(discord.ui.View):
-    """A view that prompts a user to link their TikTok handle before submitting."""
-    def __init__(self, bot, submission_data: dict):
-        super().__init__(timeout=180)
-        self.bot = bot
-        self.submission_data = submission_data
-        self.message: Optional[discord.Message] = None
-
-    @discord.ui.button(label="Link TikTok Account", style=discord.ButtonStyle.success, emoji="🔗")
-    async def link_account(self, interaction: discord.Interaction, button: discord.ui.Button):
-        modal = TikTokHandleModal(self.bot, self.submission_data)
-        await interaction.response.send_modal(modal)
-        self.stop()
-
-    @discord.ui.button(label="Submit Without Linking", style=discord.ButtonStyle.grey)
-    async def submit_anyway(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
-        await interaction.followup.send(
-            "⚠️ **Warning:** You are submitting without a linked TikTok account. "
-            "You will **not** receive engagement points for likes, comments, shares, or gifts on TikTok LIVE.",
-            ephemeral=True
-        )
-        await _finalize_submission(self.bot, interaction, self.submission_data)
-        self.stop()
-
-    async def on_timeout(self):
-        if self.message:
-            for item in self.children:
-                item.disabled = True
-            await self.message.edit(content="This submission request has timed out.", view=self)
 
 
 async def _begin_submission_process(bot, interaction: discord.Interaction, submission_data: dict):
+    """
+    The new submission process: asks for the TikTok handle directly.
+    """
     if not interaction.response.is_done():
         await interaction.response.defer(ephemeral=True, thinking=True)
 
-    linked_handles = await bot.db.get_linked_tiktok_handles(interaction.user.id)
-
-    if linked_handles:
-        await _finalize_submission(bot, interaction, submission_data)
+    modal = TikTokHandleModal(bot, submission_data)
+    if interaction.is_followup:
+        await interaction.followup.send_modal(modal)
     else:
-        view = HandlePromptView(bot, submission_data)
-        embed = discord.Embed(
-            title="🔗 Link Your TikTok Account?",
-            description=(
-                "To get points for your engagement on TikTok LIVE (likes, shares, gifts, etc.), "
-                "you need to link your TikTok handle to your Discord account.\n\n"
-                "**This is highly recommended!**"
-            ),
-            color=discord.Color.blue()
-        )
-        message = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-        view.message = message
+        await interaction.response.send_modal(modal)
 
 
 async def _finalize_submission(bot, interaction: discord.Interaction, submission_data: dict):
@@ -108,15 +90,18 @@ async def _finalize_submission(bot, interaction: discord.Interaction, submission
     artist = submission_data['artist_name']
     song = submission_data['song_name']
     user_id = interaction.user.id
-    queue_line = QueueLine.FREE.value
+    is_skip = submission_data.get('is_skip', False)
+
+    # Determine queue line based on whether it's a skip
+    queue_line = QueueLine.PENDING_SKIPS.value if is_skip else QueueLine.FREE.value
 
     try:
         is_duplicate = await bot.db.check_duplicate_submission(artist, song)
         if is_duplicate:
-            await interaction.followup.send(f"❌ This track (**{artist} - {song}**) is already in the active queue.", ephemeral=True)
+            await interaction.followup.send(f"❌ This track (**{artist} - {song}**) is already in an active queue.", ephemeral=True)
             return
 
-        if not await bot.db.is_free_line_open():
+        if queue_line == QueueLine.FREE.value and not await bot.db.is_free_line_open():
              await interaction.followup.send("❌ Submissions to the Free line are currently closed.", ephemeral=True)
              return
 
@@ -124,13 +109,16 @@ async def _finalize_submission(bot, interaction: discord.Interaction, submission
             user_id=user_id, username=interaction.user.display_name,
             artist_name=artist, song_name=song,
             link_or_file=submission_data['link_or_file'],
-            queue_line=queue_line, note=submission_data.get('note')
+            queue_line=queue_line, note=submission_data.get('note'),
+            tiktok_username=submission_data.get('tiktok_username')
         )
 
         embed = discord.Embed(title="✅ Submission Added!", description=f"Your music has been added to the **{queue_line}** line.", color=discord.Color.green())
         embed.add_field(name="Artist", value=artist, inline=True)
         embed.add_field(name="Song", value=song, inline=True)
         embed.add_field(name="Submission ID", value=f"#{public_id}", inline=False)
+        if submission_data.get('tiktok_username'):
+            embed.add_field(name="TikTok Handle Saved", value=f"`{submission_data.get('tiktok_username')}`", inline=True)
         await interaction.followup.send(embed=embed, ephemeral=True)
 
         link_value = submission_data.get('link_or_file', '')
@@ -152,8 +140,17 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
     note = discord.ui.TextInput(label='Note (Optional)', required=False, max_length=200)
 
     async def on_submit(self, interaction: discord.Interaction):
-        submission_data = {'artist_name': str(self.artist_name.value).strip(), 'song_name': str(self.song_name.value).strip(), 'link_or_file': str(self.link.value).strip(), 'note': str(self.note.value).strip() if self.note.value else None}
-        await _begin_submission_process(self.bot, interaction, submission_data)
+        submission_data = {
+            'artist_name': str(self.artist_name.value).strip(),
+            'song_name': str(self.song_name.value).strip(),
+            'link_or_file': str(self.link.value).strip(),
+            'note': str(self.note.value).strip() if self.note.value else None
+        }
+        await interaction.response.defer(ephemeral=True)
+        skip_view = SkipQuestionView(self.bot, submission_data)
+        embed = discord.Embed(title="Is this submission a skip?", description="Please let us know if you intend for this to be a skip submission.", color=discord.Color.blue())
+        message = await interaction.followup.send(embed=embed, view=skip_view, ephemeral=True)
+        skip_view.message = message
 
 class HistorySelect(discord.ui.Select):
     def __init__(self, bot, history: List[Dict[str, Any]]):
@@ -166,7 +163,12 @@ class HistorySelect(discord.ui.Select):
         selected_id = self.values[0]
         submission_to_resubmit = self.history_data[selected_id]
         submission_data = {'artist_name': submission_to_resubmit['artist_name'], 'song_name': submission_to_resubmit['song_name'], 'link_or_file': submission_to_resubmit['link_or_file'], 'note': submission_to_resubmit['note']}
-        await _begin_submission_process(self.bot, interaction, submission_data)
+
+        await interaction.response.defer(ephemeral=True)
+        skip_view = SkipQuestionView(self.bot, submission_data)
+        embed = discord.Embed(title="Is this submission a skip?", description="Please let us know if you intend for this to be a skip submission.", color=discord.Color.blue())
+        message = await interaction.followup.send(embed=embed, view=skip_view, ephemeral=True)
+        skip_view.message = message
 
 class HistoryView(discord.ui.View):
     def __init__(self, bot, history: List[Dict[str, Any]], timeout=180):
@@ -193,11 +195,7 @@ class SubmissionButtonView(discord.ui.View):
             "Answer whether you intend to send a monetary skip - Gift, PP, CA.\n"
             "If you haven't linked your TikTok handle please do so, you won't be eligible for interaction-based track boosting if you don't link your TikTok @handle(s) to your Discord account."
         )
-        embed = discord.Embed(
-            title="📁 How to Submit an Audio File",
-            description=description,
-            color=discord.Color.blue()
-        )
+        embed = discord.Embed(title="📁 How to Submit an Audio File", description=description, color=discord.Color.blue())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label='Submit from History', style=discord.ButtonStyle.success, emoji='📜', custom_id='submit_history_button')
@@ -211,7 +209,6 @@ class SubmissionButtonView(discord.ui.View):
 
 
 class ConfirmDeleteView(discord.ui.View):
-    """A view to confirm the permanent deletion of a submission."""
     def __init__(self, bot, public_id: str):
         super().__init__(timeout=60)
         self.bot = bot
@@ -231,7 +228,6 @@ class ConfirmDeleteView(discord.ui.View):
 
 
 class MySubmissionsView(discord.ui.View):
-    """A view for browsing and managing a user's submission history."""
     def __init__(self, bot, interaction: discord.Interaction, history: List[Dict[str, Any]], page_size: int = 3):
         super().__init__(timeout=300)
         self.bot = bot
@@ -368,8 +364,19 @@ class SubmissionCog(commands.Cog):
         if not file.content_type or not file.content_type.startswith('audio/'):
             await interaction.response.send_message("❌ The uploaded file does not appear to be an audio file.", ephemeral=True)
             return
-        submission_data = {'artist_name': artist_name.strip(), 'song_name': song_title.strip(), 'link_or_file': file.url, 'note': note.strip() if note else None}
-        await _begin_submission_process(self.bot, interaction, submission_data)
+
+        submission_data = {
+            'artist_name': artist_name.strip(),
+            'song_name': song_title.strip(),
+            'link_or_file': file.url,
+            'note': note.strip() if note else None
+        }
+
+        await interaction.response.defer(ephemeral=True)
+        skip_view = SkipQuestionView(self.bot, submission_data)
+        embed = discord.Embed(title="Is this submission a skip?", description="Please let us know if you intend for this to be a skip submission.", color=discord.Color.blue())
+        message = await interaction.followup.send(embed=embed, view=skip_view, ephemeral=True)
+        skip_view.message = message
 
     @app_commands.command(name="setupsubmissionportal", description="[ADMIN] Setup submission buttons in the current channel.")
     @app_commands.checks.has_permissions(administrator=True)
