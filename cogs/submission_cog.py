@@ -77,7 +77,8 @@ async def _begin_submission_process(bot, interaction: discord.Interaction, submi
         await interaction.response.defer(ephemeral=True, thinking=True)
 
     modal = TikTokHandleModal(bot, submission_data)
-    if interaction.is_followup:
+    # Check if an initial response has been sent. If so, use a followup.
+    if interaction.response.is_done():
         await interaction.followup.send_modal(modal)
     else:
         await interaction.response.send_modal(modal)
