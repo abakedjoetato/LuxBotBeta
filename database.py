@@ -21,6 +21,7 @@ class QueueLine(Enum):
     FREE = "Free"
     PENDING_SKIPS = "Pending Skips"
     SONGS_PLAYED = "Songs Played" # Renamed from "Calls Played"
+    REMOVED = "Removed"
 
 class Database:
     """Async PostgreSQL database handler for the music queue bot"""
@@ -209,7 +210,7 @@ class Database:
 
     async def check_duplicate_submission(self, artist_name: str, song_name: str) -> bool:
         """Checks if an identical song is already in any active queue, regardless of user."""
-        active_queues = [q.value for q in QueueLine if q not in (QueueLine.SONGS_PLAYED, QueueLine.PENDING_SKIPS)]
+        active_queues = [q.value for q in QueueLine if q not in (QueueLine.SONGS_PLAYED, QueueLine.PENDING_SKIPS, QueueLine.REMOVED)]
         query = """
             SELECT 1 FROM submissions
             WHERE lower(artist_name) = lower($1) AND lower(song_name) = lower($2) AND queue_line = ANY($3::text[])
@@ -252,8 +253,8 @@ class Database:
         Gets all songs from all active queues, sorted by priority and time.
         If detailed is True, returns all submission columns.
         """
-        priority_order_case = "CASE queue_line WHEN '25+ Skip' THEN 1 WHEN '20 Skip' THEN 2 WHEN '15 Skip' THEN 3 WHEN '10 Skip' THEN 4 WHEN '5 Skip' THEN 5 WHEN 'Free' THEN 6 WHEN 'Pending Skips' THEN 7 ELSE 8 END"
-        active_queues = [q.value for q in QueueLine if q not in (QueueLine.SONGS_PLAYED,)]
+        priority_order_case = "CASE queue_line WHEN '25+ Skip' THEN 1 WHEN '20 Skip' THEN 2 WHEN '15 Skip' THEN 3 WHEN '10 Skip' THEN 4 WHEN '5 Skip' THEN 5 WHEN 'Free' THEN 6 ELSE 7 END"
+        active_queues = [q.value for q in QueueLine if q not in (QueueLine.SONGS_PLAYED, QueueLine.PENDING_SKIPS, QueueLine.REMOVED)]
 
         select_columns = "s.*" if detailed else "s.artist_name, s.song_name, s.queue_line, s.username"
 
@@ -455,11 +456,11 @@ class Database:
             return None
 
     async def remove_submission_from_queue(self, public_id: str) -> Optional[str]:
-        """Removes a submission from its queue by setting its queue_line to NULL. Returns the original line."""
+        """Removes a submission from its queue by setting its queue_line to 'Removed'. Returns the original line."""
         async with self.pool.acquire() as conn:
             original_line = await conn.fetchval("SELECT queue_line FROM submissions WHERE public_id = $1", public_id)
             if original_line:
-                await conn.execute("UPDATE submissions SET queue_line = NULL WHERE public_id = $1", public_id)
+                await conn.execute("UPDATE submissions SET queue_line = $1 WHERE public_id = $2", QueueLine.REMOVED.value, public_id)
                 return original_line
             return None
 
