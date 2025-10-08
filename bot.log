@@ -1,3 +1,4 @@
 2025-10-01 01:43:09,084:ERROR:root: DISCORD_BOT_TOKEN environment variable not found!
 2025-10-01 01:43:09,084:INFO:root: Please set your Discord bot token in the environment variables.
 2025-10-01 01:43:09,084:INFO:root: You can get a bot token from https://discord.com/developers/applications
+2025-10-08 03:55:27,346:CRITICAL:root: DISCORD_BOT_TOKEN environment variable not found!

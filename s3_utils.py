@@ -18,16 +18,18 @@ class S3Client:
         self.aws_access_key_id: Optional[str] = os.getenv("B2_ACCESS_KEY_ID")
         self.aws_secret_access_key: Optional[str] = os.getenv("B2_SECRET_ACCESS_KEY")
         self.bucket_name: Optional[str] = os.getenv("B2_BUCKET_NAME")
+        self.is_configured = False
 
         if not all([self.endpoint_url, self.aws_access_key_id, self.aws_secret_access_key, self.bucket_name]):
-            logging.error("S3_CLIENT: Missing one or more required B2 environment variables.")
-            raise ValueError("Missing B2 environment variables for S3 client.")
+            logging.warning("S3_CLIENT: Missing one or more required B2 environment variables. S3 functionality will be disabled.")
+            return
 
         self.session = aioboto3.Session(
             aws_access_key_id=self.aws_access_key_id,
             aws_secret_access_key=self.aws_secret_access_key,
         )
-        logging.info("S3_CLIENT: aioboto3 session created.")
+        self.is_configured = True
+        logging.info("S3_CLIENT: aioboto3 session created and configured.")
 
     async def generate_presigned_upload_url(self, object_name: str, content_type: str, expires_in: int = 3600) -> Optional[str]:
         """
