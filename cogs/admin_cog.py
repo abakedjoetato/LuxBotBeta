@@ -107,15 +107,9 @@ class AdminCog(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         try:
-            # Step 1: Call the database function
-            await interaction.followup.send(f"⚙️ Accessing the database to set **{line}**...", ephemeral=True)
             await self.bot.db.set_channel_for_line(line, channel.id)
-
-            # Step 2: Update the queue display
-            await interaction.followup.send("🔄 Updating the queue display...", ephemeral=True)
             await self._update_queues(line)
             
-            # Step 3: Final confirmation
             embed = discord.Embed(
                 title="✅ Line Channel Set Successfully",
                 description=f"The **{line}** line has been set to {channel.mention}.",
@@ -372,15 +366,9 @@ class AdminCog(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         try:
-            # Step 1: Call the database function
-            await interaction.followup.send("⚙️ Accessing the database...", ephemeral=True)
             await self.bot.db.set_bookmark_channel(channel.id)
-
-            # Step 2: Update the local cache
-            await interaction.followup.send("📝 Updating live settings cache...", ephemeral=True)
             self.bot.settings_cache['bookmark_channel_id'] = channel.id
 
-            # Step 3: Final confirmation
             embed = discord.Embed(
                 title="✅ Bookmark Channel Set Successfully",
                 description=f"The bookmark channel has been set to {channel.mention}.",
