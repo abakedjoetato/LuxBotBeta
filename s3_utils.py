@@ -110,3 +110,20 @@ class S3Client:
             except Exception as e:
                 logging.error(f"S3_CLIENT: Failed to upload bytes to {object_name}: {e}", exc_info=True)
                 return False
+
+    async def download_file_as_bytes(self, object_name: str) -> Optional[bytes]:
+        """
+        Downloads a file from the S3 bucket and returns it as a bytes object.
+
+        :param object_name: The key (path/filename) for the object in the bucket.
+        :return: The file content as bytes, or None if an error occurs.
+        """
+        async with self.session.client("s3", endpoint_url=self.endpoint_url) as s3_client:
+            try:
+                response = await s3_client.get_object(Bucket=self.bucket_name, Key=object_name)
+                file_bytes = await response['Body'].read()
+                logging.info(f"S3_CLIENT: Successfully downloaded {object_name}.")
+                return file_bytes
+            except Exception as e:
+                logging.error(f"S3_CLIENT: Failed to download file {object_name}: {e}", exc_info=True)
+                return None

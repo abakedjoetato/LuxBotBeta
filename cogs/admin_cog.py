@@ -240,10 +240,31 @@ class AdminCog(commands.Cog):
             if now_playing_channel_id:
                 channel = self.bot.get_channel(now_playing_channel_id)
                 if channel:
-                    # Use the stored username instead of a mention to avoid pinging
                     submitter_name = next_sub['username']
-                    announcement = f"🎶 Now Playing: {next_sub['artist_name']} – {next_sub['song_name']} (submitted by {submitter_name})"
-                    await channel.send(announcement)
+                    announcement = f"🎶 Now Playing: **{next_sub['artist_name']} – {next_sub['song_name']}** (submitted by *{submitter_name}*)"
+
+                    # Check if it's a file from S3
+                    submission_cog = self.bot.get_cog('SubmissionCog')
+                    if submission_cog and submission_cog.s3_client.is_configured:
+                        s3_client = submission_cog.s3_client
+                        # Construct the base URL to check against
+                        base_url = s3_client.endpoint_url.replace("https://", "")
+                        public_url_base = f"https://{s3_client.bucket_name}.{base_url}/"
+
+                        if next_sub['link_or_file'].startswith(public_url_base):
+                            object_name = next_sub['link_or_file'].replace(public_url_base, "")
+                            file_bytes = await s3_client.download_file_as_bytes(object_name)
+                            if file_bytes:
+                                import io
+                                filename = object_name.split('/')[-1]
+                                discord_file = discord.File(io.BytesIO(file_bytes), filename=filename)
+                                await channel.send(announcement, file=discord_file)
+                            else:
+                                await channel.send(f"{announcement}\n(Error: Could not retrieve file from storage)")
+                        else:
+                            await channel.send(f"{announcement}\n{next_sub['link_or_file']}")
+                    else:
+                        await channel.send(f"{announcement}\n{next_sub['link_or_file']}")
 
             embed = discord.Embed(
                 title="🎵 Now Playing - Moved to Calls Played",
