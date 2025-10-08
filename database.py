@@ -257,7 +257,7 @@ class Database:
         priority_order_case = "CASE queue_line WHEN '25+ Skip' THEN 1 WHEN '20 Skip' THEN 2 WHEN '15 Skip' THEN 3 WHEN '10 Skip' THEN 4 WHEN '5 Skip' THEN 5 WHEN 'Free' THEN 6 ELSE 7 END"
         active_queues = [q.value for q in QueueLine if q not in (QueueLine.SONGS_PLAYED, QueueLine.PENDING_SKIPS)]
 
-        select_columns = "s.*" if detailed else "s.artist_name, s.song_name, s.queue_line"
+        select_columns = "s.*" if detailed else "s.artist_name, s.song_name, s.queue_line, s.username"
 
         query = f"""
             SELECT {select_columns}
@@ -333,6 +333,58 @@ class Database:
             gift_value = await conn.fetchval("SELECT SUM(coin_value) FROM tiktok_interactions WHERE session_id = $1 AND interaction_type = 'gift'", session_id)
             summary['gift_coins'] = gift_value or 0
             return summary
+
+    async def get_session_user_stats(self, session_id: int) -> List[Dict[str, Any]]:
+        """
+        Calculates per-user interaction stats for a specific session,
+        grouping by the user.
+        """
+        query = """
+            SELECT
+                ta.linked_discord_id,
+                ta.handle_name as tiktok_username,
+                SUM(CASE WHEN ti.interaction_type = 'like' THEN 1 ELSE 0 END) AS likes,
+                SUM(CASE WHEN ti.interaction_type = 'comment' THEN 1 ELSE 0 END) AS comments,
+                SUM(CASE WHEN ti.interaction_type = 'share' THEN 1 ELSE 0 END) AS shares,
+                SUM(CASE WHEN ti.interaction_type = 'gift' THEN ti.coin_value ELSE 0 END) AS gift_coins
+            FROM
+                tiktok_interactions ti
+            JOIN
+                tiktok_accounts ta ON ti.tiktok_account_id = ta.handle_id
+            WHERE
+                ti.session_id = $1 AND ta.linked_discord_id IS NOT NULL
+            GROUP BY
+                ta.linked_discord_id, ta.handle_name
+            ORDER BY
+                SUM(CASE WHEN ti.interaction_type = 'gift' THEN ti.coin_value ELSE 0 END) DESC,
+                COUNT(ti.id) DESC;
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, session_id)
+            return [dict(row) for row in rows]
+
+    async def get_session_submission_counts(self, session_id: int) -> Dict[int, int]:
+        """
+        Calculates the number of submissions per user for a specific live session.
+        """
+        async with self.pool.acquire() as conn:
+            session_times = await conn.fetchrow("SELECT start_time, end_time FROM live_sessions WHERE id = $1", session_id)
+            if not session_times or not session_times['end_time']:
+                return {} # Session not found or not ended
+
+            submission_counts_query = """
+                SELECT
+                    user_id,
+                    COUNT(id) as submission_count
+                FROM
+                    submissions
+                WHERE
+                    submission_time >= $1 AND submission_time <= $2
+                GROUP BY
+                    user_id;
+            """
+            rows = await conn.fetch(submission_counts_query, session_times['start_time'], session_times['end_time'])
+            return {row['user_id']: row['submission_count'] for row in rows}
 
     async def get_discord_id_from_handle(self, tiktok_handle: str) -> Optional[int]:
         """Retrieves the linked Discord user ID for a given TikTok handle."""
