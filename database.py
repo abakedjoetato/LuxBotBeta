@@ -465,6 +465,17 @@ class Database:
                 return original_line
             return None
 
+    async def delete_submission_from_history(self, public_id: str, user_id: int) -> bool:
+        """
+        Permanently deletes a submission from the history.
+        Only allows a user to delete their own submission.
+        """
+        query = "DELETE FROM submissions WHERE public_id = $1 AND user_id = $2"
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(query, public_id, user_id)
+            # "DELETE 1" means one row was deleted.
+            return result == "DELETE 1"
+
     async def get_user_lifetime_stats(self, user_id: int) -> Dict[str, int]:
         """
         Calculates lifetime interaction stats (likes, comments, shares, gift coins)

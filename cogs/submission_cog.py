@@ -37,15 +37,12 @@ class TikTokHandleModal(discord.ui.Modal, title='Link Your TikTok Handle'):
         await interaction.response.defer(ephemeral=True, thinking=True)
         clean_handle = self.handle.value.strip().lstrip('@')
 
-        # Link the account and handle the response tuple (success, message)
         success, message = await self.bot.db.link_tiktok_account(interaction.user.id, clean_handle)
 
         if not success:
-            # If linking failed, show the error message from the DB and stop.
             await interaction.followup.send(f"❌ **Linking Failed:** {message}", ephemeral=True)
             return
 
-        # If linking succeeded, show the success message and proceed with the submission.
         await interaction.followup.send(f"✅ {message} Your submission will now proceed.", ephemeral=True)
         await _finalize_submission(self.bot, interaction, self.submission_data)
 
@@ -59,14 +56,12 @@ class HandlePromptView(discord.ui.View):
 
     @discord.ui.button(label="Link TikTok Account", style=discord.ButtonStyle.success, emoji="🔗")
     async def link_account(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Opens the modal to link a TikTok account."""
         modal = TikTokHandleModal(self.bot, self.submission_data)
         await interaction.response.send_modal(modal)
-        self.stop() # Stop this view once the modal is shown
+        self.stop()
 
     @discord.ui.button(label="Submit Without Linking", style=discord.ButtonStyle.grey)
     async def submit_anyway(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Proceeds with submission without linking, with a warning."""
         await interaction.response.defer(ephemeral=True)
         await interaction.followup.send(
             "⚠️ **Warning:** You are submitting without a linked TikTok account. "
@@ -84,21 +79,14 @@ class HandlePromptView(discord.ui.View):
 
 
 async def _begin_submission_process(bot, interaction: discord.Interaction, submission_data: dict):
-    """
-    Checks if a user has a linked TikTok handle and either finalizes the submission
-    or prompts them to link their account.
-    """
-    # This function should be called after a defer, but we check just in case.
     if not interaction.response.is_done():
         await interaction.response.defer(ephemeral=True, thinking=True)
 
     linked_handles = await bot.db.get_linked_tiktok_handles(interaction.user.id)
 
     if linked_handles:
-        # User already has a handle, proceed directly to finalization
         await _finalize_submission(bot, interaction, submission_data)
     else:
-        # User does not have a handle, prompt them.
         view = HandlePromptView(bot, submission_data)
         embed = discord.Embed(
             title="🔗 Link Your TikTok Account?",
@@ -114,16 +102,13 @@ async def _begin_submission_process(bot, interaction: discord.Interaction, submi
 
 
 async def _finalize_submission(bot, interaction: discord.Interaction, submission_data: dict):
-    """
-    The final step of the submission process. Checks for duplicates, adds to the DB, and sends confirmations.
-    """
     if not interaction.response.is_done():
         await interaction.response.defer(ephemeral=True, thinking=True)
 
     artist = submission_data['artist_name']
     song = submission_data['song_name']
     user_id = interaction.user.id
-    queue_line = QueueLine.FREE.value # All submissions now start in the Free queue
+    queue_line = QueueLine.FREE.value
 
     try:
         is_duplicate = await bot.db.check_duplicate_submission(artist, song)
@@ -158,7 +143,6 @@ async def _finalize_submission(bot, interaction: discord.Interaction, submission
 
 
 class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
-    """Modal form for music submissions via link."""
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
@@ -171,9 +155,7 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
         submission_data = {'artist_name': str(self.artist_name.value).strip(), 'song_name': str(self.song_name.value).strip(), 'link_or_file': str(self.link.value).strip(), 'note': str(self.note.value).strip() if self.note.value else None}
         await _begin_submission_process(self.bot, interaction, submission_data)
 
-# ... (HistorySelect and HistoryView remain the same) ...
 class HistorySelect(discord.ui.Select):
-    """A select menu for choosing a song from submission history."""
     def __init__(self, bot, history: List[Dict[str, Any]]):
         self.bot = bot
         self.history_data = {f"history_{item['id']}": item for item in history}
@@ -187,14 +169,12 @@ class HistorySelect(discord.ui.Select):
         await _begin_submission_process(self.bot, interaction, submission_data)
 
 class HistoryView(discord.ui.View):
-    """A view that contains the history select menu."""
     def __init__(self, bot, history: List[Dict[str, Any]], timeout=180):
         super().__init__(timeout=timeout)
         self.add_item(HistorySelect(bot, history))
 
 
 class SubmissionButtonView(discord.ui.View):
-    """Persistent view with submission buttons."""
     def __init__(self, bot):
         super().__init__(timeout=None)
         self.bot = bot
@@ -230,31 +210,132 @@ class SubmissionButtonView(discord.ui.View):
         await interaction.followup.send("Please select a track from your history to re-submit.", view=HistoryView(self.bot, history), ephemeral=True)
 
 
-class RemoveSubmissionSelect(discord.ui.Select):
-    """A select menu for choosing a submission to remove from the queue."""
-    def __init__(self, bot, submissions: List[Dict[str, Any]]):
+class ConfirmDeleteView(discord.ui.View):
+    """A view to confirm the permanent deletion of a submission."""
+    def __init__(self, bot, public_id: str):
+        super().__init__(timeout=60)
         self.bot = bot
-        options = [
-            discord.SelectOption(
-                label=f"#{item['public_id']} | {item['artist_name']}",
-                description=f"{item['song_name']}",
-                value=item['public_id']
-            ) for item in submissions[:25] # Select menu can have max 25 options
-        ]
-        super().__init__(placeholder="Select a submission to remove from the active queue...", min_values=1, max_values=1, options=options)
+        self.public_id = public_id
+        self.confirmed = False
 
-    async def callback(self, interaction: discord.Interaction):
-        public_id = self.values[0]
-        original_line = await self.bot.db.remove_submission_from_queue(public_id)
+    @discord.ui.button(label="Yes, Delete Permanently", style=discord.ButtonStyle.danger)
+    async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = True
+        self.stop()
+        await interaction.response.defer()
 
-        if original_line:
-            await interaction.response.send_message(f"✅ Successfully removed submission `#{public_id}` from the **{original_line}** queue.", ephemeral=True)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.grey)
+    async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.stop()
+        await interaction.response.defer()
+
+
+class MySubmissionsView(discord.ui.View):
+    """A view for browsing and managing a user's submission history."""
+    def __init__(self, bot, interaction: discord.Interaction, history: List[Dict[str, Any]], page_size: int = 3):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.original_interaction = interaction
+        self.history = history
+        self.page_size = page_size
+        self.current_page = 0
+        self.update_page_count()
+        self.update_components()
+
+    def update_page_count(self):
+        self.total_pages = (len(self.history) + self.page_size - 1) // self.page_size
+        if self.total_pages == 0: self.total_pages = 1
+
+    def update_components(self):
+        self.clear_items()
+        start_index = self.current_page * self.page_size
+        end_index = start_index + self.page_size
+        page_items = self.history[start_index:end_index]
+
+        for i, item in enumerate(page_items):
+            remove_button = discord.ui.Button(label=f"#{item['public_id']}: Remove from Queue", style=discord.ButtonStyle.secondary, custom_id=f"remove_queue_{item['public_id']}", row=i)
+            remove_button.disabled = not item['queue_line'] or item['queue_line'] == QueueLine.SONGS_PLAYED.value
+            remove_button.callback = self.create_remove_from_queue_callback(item['public_id'])
+            self.add_item(remove_button)
+
+            delete_button = discord.ui.Button(label=f"#{item['public_id']}: Delete Permanently", style=discord.ButtonStyle.danger, custom_id=f"delete_perm_{item['public_id']}", row=i)
+            delete_button.callback = self.create_delete_permanently_callback(item['public_id'])
+            self.add_item(delete_button)
+
+        prev_button = discord.ui.Button(label="◀ Previous", style=discord.ButtonStyle.grey, custom_id="page_prev", row=4)
+        prev_button.disabled = self.current_page == 0
+        prev_button.callback = self.prev_page
+        self.add_item(prev_button)
+
+        next_button = discord.ui.Button(label="Next ▶", style=discord.ButtonStyle.grey, custom_id="page_next", row=4)
+        next_button.disabled = self.current_page >= self.total_pages - 1
+        next_button.callback = self.next_page
+        self.add_item(next_button)
+
+    async def get_page_embed(self) -> discord.Embed:
+        embed = discord.Embed(title=f"Your Submission History (Page {self.current_page + 1}/{self.total_pages})", description="Use the buttons below to manage your submissions.", color=discord.Color.blurple())
+        start_index = self.current_page * self.page_size
+        end_index = start_index + self.page_size
+        page_items = self.history[start_index:end_index]
+
+        if not page_items:
+            embed.description = "You have no submissions on this page."
         else:
-            await interaction.response.send_message(f"⚠️ Could not remove submission `#{public_id}`. It might have already been played or removed.", ephemeral=True)
+            for item in page_items:
+                status = f"`{item['queue_line'] or 'Not in Queue'}`"
+                if item['played_time']:
+                    status = f"`Played on {item['played_time'].strftime('%Y-%m-%d')}`"
+                entry = f"**{item['artist_name']} - {item['song_name']}**\n**ID:** `#{item['public_id']}` | **Status:** {status}"
+                embed.add_field(name=f"Submitted: {item['submission_time'].strftime('%Y-%m-%d %H:%M')}", value=entry, inline=False)
+        return embed
 
-        for item in self.view.children:
-            item.disabled = True
-        await interaction.edit_original_response(view=self.view)
+    async def update_message(self, interaction: discord.Interaction):
+        self.update_components()
+        embed = await self.get_page_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def prev_page(self, interaction: discord.Interaction):
+        if self.current_page > 0:
+            self.current_page -= 1
+        await self.update_message(interaction)
+
+    async def next_page(self, interaction: discord.Interaction):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+        await self.update_message(interaction)
+
+    def create_remove_from_queue_callback(self, public_id: str):
+        async def callback(interaction: discord.Interaction):
+            original_line = await self.bot.db.remove_submission_from_queue(public_id)
+            if original_line:
+                await interaction.response.send_message(f"✅ Submission `#{public_id}` removed from the **{original_line}** queue.", ephemeral=True)
+                self.history = await self.bot.db.get_user_submissions_history(interaction.user.id, limit=100)
+                self.update_page_count()
+                await self.update_message(interaction)
+            else:
+                await interaction.response.send_message(f"⚠️ Could not remove submission `#{public_id}`. It might have already been played or removed.", ephemeral=True)
+        return callback
+
+    def create_delete_permanently_callback(self, public_id: str):
+        async def callback(interaction: discord.Interaction):
+            confirm_view = ConfirmDeleteView(self.bot, public_id)
+            await interaction.response.send_message(f"Are you sure you want to permanently delete submission `#{public_id}`? **This cannot be undone.**", view=confirm_view, ephemeral=True)
+            await confirm_view.wait()
+            if confirm_view.confirmed:
+                deleted = await self.bot.db.delete_submission_from_history(public_id, interaction.user.id)
+                if deleted:
+                    await interaction.followup.send(f"✅ Submission `#{public_id}` has been permanently deleted.", ephemeral=True)
+                    self.history = await self.bot.db.get_user_submissions_history(self.original_interaction.user.id, limit=100)
+                    self.update_page_count()
+                    if self.current_page >= self.total_pages: self.current_page = max(0, self.total_pages - 1)
+                    self.update_components()
+                    embed = await self.get_page_embed()
+                    await self.original_interaction.edit_original_response(embed=embed, view=self)
+                else:
+                    await interaction.followup.send(f"⚠️ Could not delete submission `#{public_id}`.", ephemeral=True)
+            else:
+                await interaction.followup.send("Deletion cancelled.", ephemeral=True)
+        return callback
 
 
 class SubmissionCog(commands.Cog):
@@ -266,40 +347,16 @@ class SubmissionCog(commands.Cog):
     async def cog_load(self):
         self.bot.add_view(self.submission_view)
 
-    @app_commands.command(name="my-submissions", description="View your submission history and manage your queued songs.")
+    @app_commands.command(name="my-submissions", description="View and manage your submission history.")
     async def my_submissions(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         history = await self.bot.db.get_user_submissions_history(interaction.user.id, limit=100)
-
         if not history:
             await interaction.followup.send("You have no submission history.", ephemeral=True)
             return
-
-        embed = discord.Embed(title="Your Submission History", color=discord.Color.blurple())
-
-        lines = []
-        removable_submissions = []
-        for item in history:
-            status = f"`{item['queue_line'] or 'Not in Queue'}`"
-            if item['played_time']:
-                status = f"`Played`"
-
-            line = f"**{item['artist_name']} - {item['song_name']}** (`#{item['public_id']}`) - Status: {status}"
-            lines.append(line)
-
-            if item['queue_line'] and item['queue_line'] not in [QueueLine.SONGS_PLAYED.value]:
-                 removable_submissions.append(item)
-
-        embed.description = "\n".join(lines[:15])
-        if len(lines) > 15:
-            embed.set_footer(text=f"...and {len(lines) - 15} more.")
-
-        if removable_submissions:
-            view = discord.ui.View(timeout=180)
-            view.add_item(RemoveSubmissionSelect(self.bot, removable_submissions))
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-        else:
-            await interaction.followup.send(embed=embed, ephemeral=True)
+        view = MySubmissionsView(self.bot, interaction, history)
+        embed = await view.get_page_embed()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @app_commands.command(name="submit", description="Submit music for review using a link.")
     async def submit(self, interaction: discord.Interaction):
