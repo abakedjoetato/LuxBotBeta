@@ -49,6 +49,14 @@ class LiveQueueCog(commands.Cog):
         embed = discord.Embed(title="✅ Live Queue Channel Set", description=f"The public live queue display will now be managed in {channel.mention}.", color=discord.Color.green())
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="setup-live-queue", description="[ADMIN] Set the channel for the public live queue display.")
+    @app_commands.describe(channel="The text channel to use for the live queue.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def setup_live_queue(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """(Alias for /setqueuechannel) Sets the channel for the live queue."""
+        # This command just calls the other command's logic
+        await self.set_queue_channel(interaction, channel)
+
     @tasks.loop(seconds=20)
     async def update_live_queue(self):
         """Periodically fetches the queue and updates the live queue message."""

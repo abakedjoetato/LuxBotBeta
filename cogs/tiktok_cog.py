@@ -218,7 +218,12 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         if event.gift.streakable and event.streaking: return
 
         # Award points for all gifts
-        points = event.gift.diamond_count
+        # Updated point logic: 2 points per coin for gifts under 1000, otherwise 1 point per coin
+        if event.gift.diamond_count < 1000:
+            points = event.gift.diamond_count * 2
+        else:
+            points = event.gift.diamond_count
+
         await self._handle_interaction(event, 'gift', points, value=event.gift.name, coin_value=event.gift.diamond_count)
 
         # Tiered skip logic
