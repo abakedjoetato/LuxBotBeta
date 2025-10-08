@@ -63,11 +63,13 @@ class S3Client:
         :param object_name: The key (path/filename) for the object in the bucket.
         :return: The public URL for the object.
         """
-        # B2 public URLs are typically in the format: https://<bucket_name>.<endpoint_without_https>
-        # Or you can use the f-string format with your custom domain if you have one.
-        # This example uses the standard B2 format.
         base_url = self.endpoint_url.replace("https://", "")
-        return f"https://{self.bucket_name}.{base_url}/{object_name}"
+        # If the user provided the bucket-specific endpoint, don't prepend the bucket name again.
+        if base_url.startswith(f"{self.bucket_name}."):
+            return f"https://{base_url}/{object_name}"
+        else:
+            # Otherwise, construct the URL in the standard B2 format.
+            return f"https://{self.bucket_name}.{base_url}/{object_name}"
 
     async def upload_file_from_path(self, file_path: str, object_name: str) -> bool:
         """
