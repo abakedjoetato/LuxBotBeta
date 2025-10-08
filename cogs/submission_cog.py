@@ -202,7 +202,17 @@ class SubmissionButtonView(discord.ui.View):
 
     @discord.ui.button(label='Submit File', style=discord.ButtonStyle.secondary, emoji='📁', custom_id='submit_file_button')
     async def submit_file_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(title="📁 How to Submit an Audio File", description="To submit an audio file, please use the `/submitfile` command directly in the chat.", color=discord.Color.blue())
+        description = (
+            "1. Type `/submitfile` in the chat.\n"
+            "2. Attach your audio file (`.mp3`, `.m4a`, etc. No `.wav` files).\n"
+            "3. Fill in the `artist_name` and `song_title` fields.\n"
+            "4. Hit send!"
+        )
+        embed = discord.Embed(
+            title="📁 How to Submit an Audio File",
+            description=description,
+            color=discord.Color.blue()
+        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label='Submit from History', style=discord.ButtonStyle.success, emoji='📜', custom_id='submit_history_button')
