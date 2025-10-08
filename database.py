@@ -249,16 +249,22 @@ class Database:
         async with self.pool.acquire() as conn:
             await conn.execute(query)
 
-    async def get_all_active_queue_songs(self) -> List[Dict[str, Any]]:
-        """Gets all songs from all active queues, sorted by priority and time."""
+    async def get_all_active_queue_songs(self, detailed: bool = False) -> List[Dict[str, Any]]:
+        """
+        Gets all songs from all active queues, sorted by priority and time.
+        If detailed is True, returns all submission columns.
+        """
         priority_order_case = "CASE queue_line WHEN '25+ Skip' THEN 1 WHEN '20 Skip' THEN 2 WHEN '15 Skip' THEN 3 WHEN '10 Skip' THEN 4 WHEN '5 Skip' THEN 5 WHEN 'Free' THEN 6 ELSE 7 END"
         active_queues = [q.value for q in QueueLine if q not in (QueueLine.SONGS_PLAYED, QueueLine.PENDING_SKIPS)]
+
+        select_columns = "s.*" if detailed else "s.artist_name, s.song_name, s.queue_line"
+
         query = f"""
-            SELECT s.artist_name, s.song_name, s.queue_line
+            SELECT {select_columns}
             FROM submissions s
             LEFT JOIN user_points u ON s.user_id = u.user_id
             WHERE s.queue_line = ANY($1::text[])
-            ORDER BY {priority_order_case}, u.points DESC NULLS LAST, s.submission_time ASC;
+            ORDER BY {priority_order_case}, s.total_score DESC NULLS LAST, s.submission_time ASC;
         """
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, active_queues)
