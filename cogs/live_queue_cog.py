@@ -23,13 +23,10 @@ class LiveQueueCog(commands.Cog):
     async def cog_load(self):
         """Load initial settings on cog load."""
         await self.bot._send_trace("LiveQueueCog cog_load started.")
-        config = await self.bot.db.get_bot_config('live_queue')
-        if config:
-            self.live_queue_channel_id = config.get('channel_id')
-            self.live_queue_message_id = config.get('message_id')
-            await self.bot._send_trace(f"LiveQueueCog loaded config: channel_id={self.live_queue_channel_id}, message_id={self.live_queue_message_id}")
-        else:
-            await self.bot._send_trace("LiveQueueCog found no initial config.")
+        # Settings are loaded into a cache on startup. We pull from the cache.
+        self.live_queue_channel_id = self.bot.settings_cache.get('live_queue_channel_id')
+        self.live_queue_message_id = self.bot.settings_cache.get('live_queue_message_id')
+        await self.bot._send_trace(f"LiveQueueCog loaded from cache: channel_id={self.live_queue_channel_id}, message_id={self.live_queue_message_id}")
 
     def cog_unload(self):
         """Cancel tasks when the cog is unloaded."""
@@ -44,7 +41,9 @@ class LiveQueueCog(commands.Cog):
         self.live_queue_channel_id = channel.id
         self.live_queue_message_id = None # Force creation of a new message
 
-        await self.bot.db.set_bot_config('live_queue', channel_id=channel.id, message_id=None)
+        # Save settings to DB using separate keys
+        await self.bot.db.set_bot_config('live_queue_channel_id', channel_id=channel.id)
+        await self.bot.db.set_bot_config('live_queue_message_id', message_id=None)
 
         # Update the settings cache directly
         self.bot.settings_cache['live_queue_channel_id'] = channel.id
@@ -109,7 +108,9 @@ class LiveQueueCog(commands.Cog):
                 await channel.purge(limit=5, check=lambda m: m.author == self.bot.user and m.pinned)
                 new_message = await channel.send(embed=embed)
                 self.live_queue_message_id = new_message.id
-                await self.bot.db.set_bot_config('live_queue', channel_id=self.live_queue_channel_id, message_id=new_message.id)
+                # Save the new message ID to the database with its specific key
+                await self.bot.db.set_bot_config('live_queue_message_id', message_id=new_message.id)
+                self.bot.settings_cache['live_queue_message_id'] = new_message.id # Update cache
                 try:
                     await new_message.pin()
                 except discord.Forbidden:
