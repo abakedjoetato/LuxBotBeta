@@ -150,23 +150,63 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         channel = self.bot.get_channel(int(debug_channel_id))
         if not channel: return
 
-        embed = discord.Embed(
-            title=f"📈 TikTok Live Summary for {self.live_host_username}",
+        # --- Overall Summary (Existing) ---
+        overall_embed = discord.Embed(
+            title=f"📈 Overall Live Summary for {self.live_host_username}",
             description="Summary of all interactions during the last session.",
             color=discord.Color.blurple()
         )
-        embed.add_field(name="Likes", value=f"{summary.get('like', 0):,}", inline=True)
-        embed.add_field(name="Comments", value=f"{summary.get('comment', 0):,}", inline=True)
-        embed.add_field(name="Shares", value=f"{summary.get('share', 0):,}", inline=True)
-        embed.add_field(name="Follows", value=f"{summary.get('follow', 0):,}", inline=True)
-        embed.add_field(name="Gifts Received", value=f"{summary.get('gift', 0):,}", inline=True)
-        embed.add_field(name="Total Coins", value=f"{summary.get('gift_coins', 0):,}", inline=True)
-        embed.set_footer(text=f"Session ID: {self.current_session_id}")
-        embed.timestamp = discord.utils.utcnow()
+        overall_embed.add_field(name="Likes", value=f"{summary.get('like', 0):,}", inline=True)
+        overall_embed.add_field(name="Comments", value=f"{summary.get('comment', 0):,}", inline=True)
+        overall_embed.add_field(name="Shares", value=f"{summary.get('share', 0):,}", inline=True)
+        overall_embed.add_field(name="Follows", value=f"{summary.get('follow', 0):,}", inline=True)
+        overall_embed.add_field(name="Gifts Received", value=f"{summary.get('gift', 0):,}", inline=True)
+        overall_embed.add_field(name="Total Coins", value=f"{summary.get('gift_coins', 0):,}", inline=True)
+        overall_embed.set_footer(text=f"Session ID: {self.current_session_id}")
+        overall_embed.timestamp = discord.utils.utcnow()
+
         try:
-            await channel.send(embed=embed)
+            await channel.send(embed=overall_embed)
         except discord.Forbidden:
             logging.error(f"Missing permissions to send summary to channel {debug_channel_id}")
+            return # Can't send anything if we don't have perms
+
+        # --- Per-User Summary (New) ---
+        user_stats = await self.bot.db.get_session_user_stats(self.current_session_id)
+        submission_counts = await self.bot.db.get_session_submission_counts(self.current_session_id)
+
+        if not user_stats:
+            return # No users to report on
+
+        user_embed = discord.Embed(
+            title=f"👥 Per-User Stats for {self.live_host_username}",
+            description="Top contributors for the last session.",
+            color=discord.Color.dark_green()
+        )
+        user_embed.set_footer(text=f"Session ID: {self.current_session_id}")
+        user_embed.timestamp = discord.utils.utcnow()
+
+        description_lines = []
+        for i, user_data in enumerate(user_stats[:10]): # Top 10 contributors
+            discord_id = user_data['linked_discord_id']
+            user = self.bot.get_user(discord_id) or f"ID: {discord_id}"
+            subs = submission_counts.get(discord_id, 0)
+
+            stats_line = (
+                f"**{i+1}. {user}** (`{user_data['tiktok_username']}`)\n"
+                f"> Subs: `{subs}` | Likes: `{user_data['likes']}` | Comments: `{user_data['comments']}` | "
+                f"Shares: `{user_data['shares']}` | Coins: `{int(user_data['gift_coins'])}`\n"
+            )
+            description_lines.append(stats_line)
+
+        user_embed.description = "\n".join(description_lines)
+        if len(user_stats) > 10:
+            user_embed.description += f"\n...and {len(user_stats) - 10} more contributors."
+
+        try:
+            await channel.send(embed=user_embed)
+        except discord.Forbidden:
+            logging.error(f"Missing permissions to send per-user summary to channel {debug_channel_id}")
 
     # --- Event Handlers ---
     async def on_connect(self, _: ConnectEvent):

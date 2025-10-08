@@ -230,6 +230,33 @@ class SubmissionButtonView(discord.ui.View):
         await interaction.followup.send("Please select a track from your history to re-submit.", view=HistoryView(self.bot, history), ephemeral=True)
 
 
+class RemoveSubmissionSelect(discord.ui.Select):
+    """A select menu for choosing a submission to remove from the queue."""
+    def __init__(self, bot, submissions: List[Dict[str, Any]]):
+        self.bot = bot
+        options = [
+            discord.SelectOption(
+                label=f"#{item['public_id']} | {item['artist_name']}",
+                description=f"{item['song_name']}",
+                value=item['public_id']
+            ) for item in submissions[:25] # Select menu can have max 25 options
+        ]
+        super().__init__(placeholder="Select a submission to remove from the active queue...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        public_id = self.values[0]
+        original_line = await self.bot.db.remove_submission_from_queue(public_id)
+
+        if original_line:
+            await interaction.response.send_message(f"✅ Successfully removed submission `#{public_id}` from the **{original_line}** queue.", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"⚠️ Could not remove submission `#{public_id}`. It might have already been played or removed.", ephemeral=True)
+
+        for item in self.view.children:
+            item.disabled = True
+        await interaction.edit_original_response(view=self.view)
+
+
 class SubmissionCog(commands.Cog):
     """Cog for handling all music submissions."""
     def __init__(self, bot):
@@ -238,6 +265,41 @@ class SubmissionCog(commands.Cog):
 
     async def cog_load(self):
         self.bot.add_view(self.submission_view)
+
+    @app_commands.command(name="my-submissions", description="View your submission history and manage your queued songs.")
+    async def my_submissions(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        history = await self.bot.db.get_user_submissions_history(interaction.user.id, limit=100)
+
+        if not history:
+            await interaction.followup.send("You have no submission history.", ephemeral=True)
+            return
+
+        embed = discord.Embed(title="Your Submission History", color=discord.Color.blurple())
+
+        lines = []
+        removable_submissions = []
+        for item in history:
+            status = f"`{item['queue_line'] or 'Not in Queue'}`"
+            if item['played_time']:
+                status = f"`Played`"
+
+            line = f"**{item['artist_name']} - {item['song_name']}** (`#{item['public_id']}`) - Status: {status}"
+            lines.append(line)
+
+            if item['queue_line'] and item['queue_line'] not in [QueueLine.SONGS_PLAYED.value]:
+                 removable_submissions.append(item)
+
+        embed.description = "\n".join(lines[:15])
+        if len(lines) > 15:
+            embed.set_footer(text=f"...and {len(lines) - 15} more.")
+
+        if removable_submissions:
+            view = discord.ui.View(timeout=180)
+            view.add_item(RemoveSubmissionSelect(self.bot, removable_submissions))
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        else:
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="submit", description="Submit music for review using a link.")
     async def submit(self, interaction: discord.Interaction):

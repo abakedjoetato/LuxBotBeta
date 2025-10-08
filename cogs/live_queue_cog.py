@@ -90,7 +90,8 @@ class LiveQueueCog(commands.Cog):
                 for i, song in enumerate(songs[:25], 1): # Display up to 25 songs
                     is_skip = "skip" in song['queue_line'].lower()
                     skip_indicator = " `(Skip)`" if is_skip else ""
-                    song_list.append(f"**{i}.** {song['artist_name']} - {song['song_name']}{skip_indicator}")
+                    # Now includes the submitter's username
+                    song_list.append(f"**{i}.** {song['artist_name']} - {song['song_name']}{skip_indicator} `(by {song['username']})`")
 
                 embed.description = "\n".join(song_list)
                 if len(songs) > 25:
