@@ -10,6 +10,8 @@ from typing import Optional
 from .checks import is_admin
 import random
 import string
+import logging
+from urllib.parse import urlparse
 
 class NextActionView(discord.ui.View):
     def __init__(self, bot, submission_public_id: str):
@@ -247,12 +249,24 @@ class AdminCog(commands.Cog):
                     submission_cog = self.bot.get_cog('SubmissionCog')
                     if submission_cog and submission_cog.s3_client.is_configured:
                         s3_client = submission_cog.s3_client
-                        # Construct the base URL to check against
-                        base_url = s3_client.endpoint_url.replace("https://", "")
-                        public_url_base = f"https://{s3_client.bucket_name}.{base_url}/"
+                        # --- ROBUST S3 URL CHECK ---
+                        is_s3_file = False
+                        object_name = None
+                        try:
+                            submission_url = urlparse(next_sub['link_or_file'])
+                            s3_endpoint = urlparse(s3_client.endpoint_url)
 
-                        if next_sub['link_or_file'].startswith(public_url_base):
-                            object_name = next_sub['link_or_file'].replace(public_url_base, "")
+                            expected_netloc = f"{s3_client.bucket_name}.{s3_endpoint.netloc}"
+
+                            if submission_url.netloc == expected_netloc:
+                                is_s3_file = True
+                                object_name = submission_url.path.lstrip('/')
+                        except Exception:
+                            # If parsing fails, it's not a valid URL, so not an S3 file.
+                            pass
+                        # --- END ROBUST S3 URL CHECK ---
+
+                        if is_s3_file and object_name:
                             file_bytes = await s3_client.download_file_as_bytes(object_name)
                             if file_bytes:
                                 import io
