@@ -200,11 +200,18 @@ class SubmissionButtonView(discord.ui.View):
     async def submit_link_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(SubmissionModal(self.bot))
 
-    @discord.ui.button(label='Submit File', style=discord.ButtonStyle.secondary, emoji='📁', custom_id='submit_file_button')
+    @discord.ui.button(label='Submit File Instructions', style=discord.ButtonStyle.secondary, emoji='📁', custom_id='submit_file_button')
     async def submit_file_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        description = (
+            "Type `/` then `submitfile` in the chat and hit enter.\n"
+            "Attach your audio file `.mp3`, `.m4a`, etc. (No `.wav` files).\n"
+            "Fill in the `artist_name` and `song_title` fields and optional note.\n"
+            "Hit send!\n"
+            "Answer whether you intend to send a monetary skip - Gift, PP, CA."
+        )
         embed = discord.Embed(
-            title="📁 Submit an Audio File",
-            description="Please use the `/submitfile` command in the chat to upload your audio file.",
+            title="📁 How to Submit an Audio File",
+            description=description,
             color=discord.Color.blue()
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -247,11 +254,11 @@ class SubmissionCog(commands.Cog):
         embed = discord.Embed(title="🎵 Music Submission Portal", description="Use the buttons below to submit your music.", color=discord.Color.dark_purple())
         embed.add_field(name="🔗 Submit a Link", value="Click the `Submit Link` button to open a form where you can paste a URL.", inline=False)
         file_submission_instructions = (
-            "To submit an audio file:\n"
-            "1. Type `/submitfile` in the chat.\n"
-            "2. Attach your audio file (`.mp3`, `.m4a`, etc. No `.wav` files).\n"
-            "3. Fill in the `artist_name` and `song_title` fields.\n"
-            "4. Hit send!"
+            "Type `/` then `submitfile` in the chat and hit enter.\n"
+            "Attach your audio file `.mp3`, `.m4a`, etc. (No `.wav` files).\n"
+            "Fill in the `artist_name` and `song_title` fields and optional note.\n"
+            "Hit send!\n"
+            "Answer whether you intend to send a monetary skip - Gift, PP, CA."
         )
         embed.add_field(name="📁 Submit a File", value=file_submission_instructions, inline=False)
         embed.add_field(name="📜 Submit from History", value="Click `Submit from History` to quickly re-submit one of your previously played tracks.", inline=False)
