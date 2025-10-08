@@ -28,16 +28,20 @@ class LiveQueueCog(commands.Cog):
         """Cancel tasks when the cog is unloaded."""
         self.update_live_queue.cancel()
 
-    @app_commands.command(name="setlivequeuechannel", description="[ADMIN] Set the channel for the public live queue display.")
+    @app_commands.command(name="setqueuechannel", description="[ADMIN] Set the channel for the public live queue display.")
     @app_commands.describe(channel="The text channel to use for the live queue.")
     @app_commands.checks.has_permissions(administrator=True)
-    async def set_live_queue_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+    async def set_queue_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """Sets the channel for the live queue and pins the initial message."""
         await interaction.response.defer(ephemeral=True)
         self.live_queue_channel_id = channel.id
         self.live_queue_message_id = None # Force creation of a new message
 
         await self.bot.db.set_bot_config('live_queue', channel_id=channel.id, message_id=None)
+
+        # Update the settings cache directly
+        self.bot.settings_cache['live_queue_channel_id'] = channel.id
+        self.bot.settings_cache['live_queue_message_id'] = None
 
         # Run immediately to create the message and get its ID
         await self.update_live_queue()
