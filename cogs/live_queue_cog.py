@@ -32,11 +32,8 @@ class LiveQueueCog(commands.Cog):
         """Cancel tasks when the cog is unloaded."""
         self.update_live_queue.cancel()
 
-    @app_commands.command(name="setqueuechannel", description="[ADMIN] Set the channel for the public live queue display.")
-    @app_commands.describe(channel="The text channel to use for the live queue.")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def set_queue_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        """Sets the channel for the live queue and pins the initial message."""
+    async def _setup_live_queue_logic(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """The core logic for setting up the live queue channel."""
         await interaction.response.defer(ephemeral=True)
         self.live_queue_channel_id = channel.id
         self.live_queue_message_id = None # Force creation of a new message
@@ -55,13 +52,19 @@ class LiveQueueCog(commands.Cog):
         embed = discord.Embed(title="✅ Live Queue Channel Set", description=f"The public live queue display will now be managed in {channel.mention}.", color=discord.Color.green())
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="setqueuechannel", description="[ADMIN] Set the channel for the public live queue display.")
+    @app_commands.describe(channel="The text channel to use for the live queue.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def set_queue_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """Sets the channel for the live queue and pins the initial message."""
+        await self._setup_live_queue_logic(interaction, channel)
+
     @app_commands.command(name="setup-live-queue", description="[ADMIN] Set the channel for the public live queue display.")
     @app_commands.describe(channel="The text channel to use for the live queue.")
     @app_commands.checks.has_permissions(administrator=True)
     async def setup_live_queue(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """(Alias for /setqueuechannel) Sets the channel for the live queue."""
-        # This command just calls the other command's logic
-        await self.set_queue_channel(interaction, channel)
+        await self._setup_live_queue_logic(interaction, channel)
 
     @tasks.loop(seconds=20)
     async def update_live_queue(self):
