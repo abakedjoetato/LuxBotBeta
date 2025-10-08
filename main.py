@@ -83,14 +83,23 @@ class MusicQueueBot(commands.Bot):
         await self._send_trace("Syncing slash commands...")
         try:
             guild_id = os.getenv('GUILD_ID')
+            synced_commands = []
             if guild_id:
                 guild = discord.Object(id=int(guild_id))
                 self.tree.copy_global_to(guild=guild)
                 synced = await self.tree.sync(guild=guild)
+                synced_commands = [c.name for c in synced]
                 await self._send_trace(f"Synced {len(synced)} command(s) to guild {guild_id}.")
             else:
                 synced = await self.tree.sync()
+                synced_commands = [c.name for c in synced]
                 await self._send_trace(f"Synced {len(synced)} command(s) globally.")
+
+            if synced_commands:
+                await self._send_trace(f"Registered commands: {', '.join(synced_commands)}")
+            else:
+                await self._send_trace("No commands were synced.")
+
         except Exception as e:
             await self._send_trace(f"Failed to sync commands: {e}", is_error=True)
         await self._send_trace("Finished syncing commands.")

@@ -2,6 +2,7 @@
 Live Queue Cog - Manages the public-facing #live-queue channel display.
 """
 
+import asyncio
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -15,14 +16,20 @@ class LiveQueueCog(commands.Cog):
         self.bot = bot
         self.live_queue_channel_id: Optional[int] = None
         self.live_queue_message_id: Optional[int] = None
+        # Use asyncio.create_task to avoid awaiting here
+        asyncio.create_task(self.bot._send_trace("LiveQueueCog initialized."))
         self.update_live_queue.start()
 
     async def cog_load(self):
         """Load initial settings on cog load."""
+        await self.bot._send_trace("LiveQueueCog cog_load started.")
         config = await self.bot.db.get_bot_config('live_queue')
         if config:
             self.live_queue_channel_id = config.get('channel_id')
             self.live_queue_message_id = config.get('message_id')
+            await self.bot._send_trace(f"LiveQueueCog loaded config: channel_id={self.live_queue_channel_id}, message_id={self.live_queue_message_id}")
+        else:
+            await self.bot._send_trace("LiveQueueCog found no initial config.")
 
     def cog_unload(self):
         """Cancel tasks when the cog is unloaded."""
