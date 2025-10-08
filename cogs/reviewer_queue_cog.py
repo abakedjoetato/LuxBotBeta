@@ -3,6 +3,7 @@ Reviewer Queue Cog
 Handles the display of a detailed, persistent queue for staff review.
 """
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 import logging
 from typing import List, Dict, Optional
