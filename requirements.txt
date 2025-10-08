@@ -2,4 +2,3 @@ discord.py>=2.3.2
 python-dotenv>=1.0.0
 TikTokLive>=2.2.1
 asyncpg>=0.29.0
-aioboto3>=12.3.0
