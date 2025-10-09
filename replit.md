@@ -69,6 +69,37 @@ Successfully implemented 8 major feature enhancements:
    - Event-driven refresh via `queue_update` events
    - Real-time synchronization across all displays
 
+### TikTok Connection Improvements (2025-10-09)
+Implemented robust TikTok Live connection system with enterprise-grade reliability:
+
+1. **Persistent Connection with Retry Logic** ✅
+   - `/tiktok connect` now supports persistent mode (default: enabled)
+   - Automatic retry when user is offline - perfect for pre-stream setup
+   - Smart retry intervals: 10s for first 3 attempts, 30s thereafter
+   - Handles all error scenarios: UserNotFoundError, UserOfflineError, general exceptions
+   - Proper cancellation support for clean shutdown
+
+2. **Connection Status Command** ✅
+   - `/tiktok status` displays real-time connection state
+   - Shows connection uptime, retry count, session ID
+   - Three distinct states: Active (connected), In Progress (attempting), Disconnected
+   - Clear visual indicators with color-coded embeds
+   - Helpful footer text with next action suggestions
+
+3. **Enhanced Disconnect Functionality** ✅
+   - `/tiktok disconnect` handles both active connections and connection attempts
+   - Can cancel in-progress connection attempts
+   - Clear status messages for all scenarios
+   - Proper cleanup of session data and state variables
+   - Posts session summary when disconnecting from active stream
+
+4. **Database Performance Optimizations** ✅
+   - Added 7 strategic indices for frequently queried columns
+   - Composite index for Free queue ordering (critical performance boost)
+   - Optimized Free queue query to use total_score (eliminates expensive join)
+   - Index coverage for: user_id, queue_line, session_id, played_time, submission_time
+   - Partial index on Free queue for maximum efficiency
+
 ### Code Cleanup & Error Fixes (2025-10-09)
 Successfully completed comprehensive codebase cleanup:
 - ✅ Fixed all critical attribute errors (bot.database → bot.db) across all cogs
