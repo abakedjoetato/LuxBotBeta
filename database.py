@@ -138,6 +138,18 @@ class Database:
                     );
                 """)
 
+                # Create performance indices for frequently queried columns
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_id ON submissions(user_id);")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_submissions_queue_line ON submissions(queue_line);")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_submissions_played_time ON submissions(played_time);")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_submissions_submission_time ON submissions(submission_time);")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_tiktok_interactions_session_id ON tiktok_interactions(session_id);")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_tiktok_interactions_tiktok_account_id ON tiktok_interactions(tiktok_account_id);")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_tiktok_accounts_linked_discord_id ON tiktok_accounts(linked_discord_id);")
+                
+                # Composite index for Free queue ordering (critical for performance)
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_submissions_free_queue ON submissions(queue_line, total_score DESC, submission_time ASC) WHERE queue_line = 'Free';")
+
         logging.info("Database initialized successfully.")
 
     @property
@@ -180,7 +192,8 @@ class Database:
         if queue_line == QueueLine.SONGS_PLAYED.value:
             query = "SELECT * FROM submissions WHERE queue_line = $1 AND played_time IS NOT NULL ORDER BY played_time DESC"
         elif queue_line == QueueLine.FREE.value:
-            query = "SELECT s.*, u.points FROM submissions s LEFT JOIN user_points u ON s.user_id = u.user_id WHERE s.queue_line = $1 ORDER BY u.points DESC, s.submission_time ASC"
+            # Use total_score (synced from user_points) for consistent ordering with composite index
+            query = "SELECT * FROM submissions WHERE queue_line = $1 ORDER BY total_score DESC, submission_time ASC"
         else:
             query = "SELECT * FROM submissions WHERE queue_line = $1 ORDER BY submission_time ASC"
         async with self.pool.acquire() as conn:

@@ -94,3 +94,21 @@ AttributeError: 'NoneType' object has no attribute 'room_id'
 2025-10-09 11:34:52,058:INFO:root: Database initialized successfully.
 2025-10-09 11:34:53,366:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
 2025-10-09 11:34:53,949:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: ace90f81428c0d030e04682cfce4c67c).
+2025-10-09 11:55:17,561:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 11:55:17,561:INFO:discord.client: logging in using static token
+2025-10-09 11:55:17,991:INFO:root: Database pool created.
+2025-10-09 11:55:18,080:INFO:root: Database initialized successfully.
+2025-10-09 11:55:19,433:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 11:55:20,152:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: f367157e8db44e695f69fdc7c5270e8a).
+2025-10-09 11:55:40,527:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 11:55:40,528:INFO:discord.client: logging in using static token
+2025-10-09 11:55:41,018:INFO:root: Database pool created.
+2025-10-09 11:55:41,039:INFO:root: Database initialized successfully.
+2025-10-09 11:55:42,209:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 11:56:20,021:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: 69b9887824b7352660195e910bf9f695).
+2025-10-09 11:58:10,742:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 11:58:10,756:INFO:discord.client: logging in using static token
+2025-10-09 11:58:11,183:INFO:root: Database pool created.
+2025-10-09 11:58:11,215:INFO:root: Database initialized successfully.
+2025-10-09 11:58:12,746:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 11:58:13,448:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: f1be2d77285b23f1e707c251d9a1504a).

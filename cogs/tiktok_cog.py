@@ -235,7 +235,8 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         """Resets all internal state variables for the connection."""
         if self._connection_task and not self._connection_task.done():
             self._connection_task.cancel()
-
+        
+        self._connection_task = None
         self.bot.tiktok_client = None
         self._is_connected.clear()
         self.current_session_id = None
