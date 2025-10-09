@@ -40,13 +40,16 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         self.score_sync_task.start()
         super().__init__()
 
+    # FIXED BY JULES
     def cog_unload(self):
         """Clean up resources when the cog is unloaded."""
         self.score_sync_task.cancel()
         if self._connection_task and not self._connection_task.done():
             self._connection_task.cancel()
-        if self.is_connected:
-            asyncio.create_task(self._cleanup_connection())
+
+        # If connected, trigger the disconnection. The on_disconnect event will handle the cleanup.
+        if self.is_connected and self.bot.tiktok_client:
+            asyncio.create_task(self.bot.tiktok_client.disconnect())
 
     @property
     def is_connected(self) -> bool:
@@ -106,33 +109,26 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             logging.error(f"Failed to connect to TikTok in background: {e}", exc_info=True)
             await edit_status("❌ Connection Failed", f"**Reason:** An unexpected error occurred.\n```\n{e}\n```", discord.Color.red())
         finally:
-             if not self.is_connected:
-                await self._cleanup_connection(post_summary=False) # Don't post summary on failed connection
+            # If the connection task fails and the disconnect event was not received,
+            # we need to manually reset the state.
+            if not self.is_connected:
+                self._reset_state()
 
+    # FIXED BY JULES
     @app_commands.command(name="disconnect", description="Disconnect from the TikTok LIVE stream.")
     async def disconnect(self, interaction: discord.Interaction):
-        if not self.is_connected:
+        """Signals the TikTok client to disconnect. The on_disconnect event will handle all cleanup."""
+        if not self.is_connected or not self.bot.tiktok_client:
             await interaction.response.send_message("Not currently connected to any stream.", ephemeral=True)
             return
-        await interaction.response.send_message("🔌 Disconnecting... The bot will disconnect and post a session summary.", ephemeral=True)
-        asyncio.create_task(self._cleanup_connection())
 
-    async def _cleanup_connection(self, post_summary: bool = True):
-        """Handles the disconnection and optionally posts the end-of-live summary."""
-        if not self.is_connected: return
+        await interaction.response.send_message("🔌 Disconnecting... The bot will disconnect and post a session summary shortly.", ephemeral=True)
 
-        if post_summary and self.current_session_id:
-            await self.bot.db.end_live_session(self.current_session_id)
-            summary = await self.bot.db.get_live_session_summary(self.current_session_id)
-            await self._post_live_summary(summary)
+        # This will trigger the on_disconnect event, which is the single source of truth for cleanup.
+        await self.bot.tiktok_client.disconnect()
 
-        if self.bot.tiktok_client:
-            try:
-                # Use .disconnect() as .stop() is not a valid method
-                await self.bot.tiktok_client.disconnect()
-            except Exception as e:
-                logging.error(f"Error disconnecting TikTok client: {e}", exc_info=True)
-
+    def _reset_state(self):
+        """Resets all internal state variables for the connection."""
         if self._connection_task and not self._connection_task.done():
             self._connection_task.cancel()
 
@@ -141,7 +137,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         self.current_session_id = None
         self.live_host_username = None
         self._connect_interaction = None
-        logging.info("TIKTOK: Connection cleaned up successfully.")
+        logging.info("TIKTOK: Internal connection state has been reset.")
 
     async def _post_live_summary(self, summary: Dict[str, int]):
         """Posts the live session summary to the admin/debug channel."""
