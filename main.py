@@ -68,7 +68,7 @@ class MusicQueueBot(commands.Bot):
         await self._send_trace("Loading cogs...")
         cogs_to_load = [
             'cogs.submission_cog',
-            'cogs.admin_cog', 'cogs.moderation_cog', 'cogs.tiktok_cog',
+            'cogs.admin_cog', 'cogs.tiktok_cog',
             'cogs.user_cog', 'cogs.live_queue_cog', 'cogs.reviewer_queue_cog'
         ]
         for cog in cogs_to_load:
@@ -181,35 +181,34 @@ class MusicQueueBot(commands.Bot):
 
     # FIXED BY JULES
     async def on_message(self, message: discord.Message):
-        """Event listener for messages to handle submission channel cleanup."""
+        """
+        Event listener for messages to handle submission channel cleanup and process legacy commands.
+        """
         # Ignore DMs and messages from the bot itself
         if message.guild is None or message.author.bot:
             return
 
-        # Process commands first
-        await self.process_commands(message)
-
-        # Check if the message is in the designated submission channel
+        # Check if the message is in the designated submission channel for cleanup
         submission_channel_id = self.settings_cache.get('submission_channel_id')
-        if not submission_channel_id or message.channel.id != int(submission_channel_id):
-            return
+        if submission_channel_id and message.channel.id == int(submission_channel_id):
+            # We are in the submission channel. Only slash commands and admin messages are allowed.
 
-        # Allow messages from admins
-        if isinstance(message.author, discord.Member) and message.author.guild_permissions.administrator:
-            return
+            # Allow messages from admins
+            if isinstance(message.author, discord.Member) and message.author.guild_permissions.administrator:
+                return # Admins can talk freely
 
-        # Allow messages that are interactions (e.g., slash command usage)
-        if message.interaction is not None:
-            return
-
-        # If none of the above, delete the message
-        try:
-            await message.delete()
-            logging.info(f"Deleted message from {message.author} in submission channel.")
-        except discord.Forbidden:
-            logging.warning(f"Failed to delete message from {message.author} in submission channel (missing permissions).")
-        except discord.NotFound:
-            pass # Message was already deleted, probably by another bot or admin
+            # At this point, it's a non-admin user. Any standard message should be deleted.
+            # Slash commands are handled as interactions and won't be deleted by this.
+            try:
+                await message.delete()
+                await self._send_trace(f"Deleted unauthorized message from {message.author} in submission channel.")
+            except discord.Forbidden:
+                await self._send_trace(f"Failed to delete message from {message.author} in submission channel (missing permissions).", is_error=True)
+            except discord.NotFound:
+                pass # Message was already deleted, which is fine.
+        else:
+            # If not in the submission channel, process any potential prefix commands.
+            await self.process_commands(message)
 
 async def main():
     """Main function to run the bot."""
