@@ -71,6 +71,21 @@ Preferred communication style: Simple, everyday language.
 - **Testing:** Bot restart verified - no AttributeError or asyncio callback crashes detected
 - Created comprehensive TIKTOK_GIFT_FIX.md documentation
 
+### Gift Tier System Update
+- **Completed All 5 Tier Thresholds**:
+  - 1000-1999 coins → 5 Skip
+  - 2000-3999 coins → 10 Skip
+  - 4000-4999 coins → 15 Skip (newly added)
+  - 5000-5999 coins → 20 Skip (newly added)
+  - 6000+ coins → 25+ Skip (updated from 5000+)
+- **Fixed Rewardable Submission Logic**:
+  - Now correctly selects from Free line AND Pending Skips
+  - Properly excludes submissions already in skip lines (5, 10, 15, 20, 25+)
+  - Also excludes Songs Played and Removed submissions
+- **Points Calculation**: Under 1000 coins awards 2 points per coin (unchanged)
+- **Architect Review**: Passed - all tier thresholds and boundary values handled correctly
+- Created comprehensive GIFT_TIER_UPDATE.md documentation
+
 ## System Architecture
 
 ### UI/UX Decisions
