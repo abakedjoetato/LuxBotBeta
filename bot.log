@@ -88,3 +88,9 @@ AttributeError: 'NoneType' object has no attribute 'room_id'
 2025-10-09 11:33:50,458:INFO:root: Database initialized successfully.
 2025-10-09 11:33:51,746:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
 2025-10-09 11:33:52,452:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: a0fe8b9f73bec0e04f04845bd413bead).
+2025-10-09 11:34:51,554:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 11:34:51,557:INFO:discord.client: logging in using static token
+2025-10-09 11:34:52,023:INFO:root: Database pool created.
+2025-10-09 11:34:52,058:INFO:root: Database initialized successfully.
+2025-10-09 11:34:53,366:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 11:34:53,949:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: ace90f81428c0d030e04682cfce4c67c).
