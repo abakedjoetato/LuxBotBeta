@@ -41,6 +41,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         self._retry_enabled: bool = False
         self._retry_count: int = 0
         self._connection_start_time: Optional[float] = None
+        self._user_initiated_disconnect: bool = False
         self.score_sync_task.start()
         super().__init__()
 
@@ -59,7 +60,21 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
     def is_connected(self) -> bool:
         return self._is_connected.is_set()
 
-    # ... (rest of the connection and status logic remains the same) ...
+    async def _send_debug_notification(self, embed: discord.Embed):
+        """Send a notification embed to the debug channel if configured."""
+        debug_channel_id = self.bot.settings_cache.get('debug_channel_id')
+        if not debug_channel_id:
+            return
+        
+        channel = self.bot.get_channel(int(debug_channel_id))
+        if channel:
+            try:
+                await channel.send(embed=embed)
+            except discord.Forbidden:
+                logging.error(f"Missing permissions to send to debug channel {debug_channel_id}")
+            except Exception as e:
+                logging.error(f"Failed to send debug notification: {e}")
+
     def _create_status_embed(self, title: str, description: str, color: discord.Color) -> discord.Embed:
         """Helper function to create a standardized status embed."""
         embed = discord.Embed(title=title, description=description, color=color)
@@ -218,6 +233,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         """Signals the TikTok client to disconnect or cancel connection attempt."""
         # Check if there's an active connection
         if self.is_connected and self.bot.tiktok_client:
+            self._user_initiated_disconnect = True
             await interaction.response.send_message("🔌 Disconnecting from TikTok LIVE... Session summary will be posted shortly.", ephemeral=True)
             await self.bot.tiktok_client.disconnect()
             return
@@ -245,6 +261,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         self._retry_enabled = False
         self._retry_count = 0
         self._connection_start_time = None
+        self._user_initiated_disconnect = False
         logging.info("TIKTOK: Internal connection state has been reset.")
 
     async def _cleanup_connection(self):
@@ -365,6 +382,20 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         if self.live_host_username:
             self.current_session_id = await self.bot.db.start_live_session(self.live_host_username)
             logging.info(f"TIKTOK: Started live session with ID {self.current_session_id}")
+            
+            # Send connection success notification to debug channel
+            embed = discord.Embed(
+                title="✅ TikTok Stream Connected",
+                description=f"Successfully connected to TikTok LIVE stream.",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Username", value=f"@{self.live_host_username}", inline=True)
+            embed.add_field(name="Room ID", value=f"{self.bot.tiktok_client.room_id}", inline=True)
+            embed.add_field(name="Session ID", value=f"{self.current_session_id}", inline=True)
+            embed.set_footer(text="Monitoring interactions and engagement")
+            embed.timestamp = discord.utils.utcnow()
+            
+            await self._send_debug_notification(embed)
 
         if self._connect_interaction:
             await self._connect_interaction.edit_original_response(
@@ -372,7 +403,34 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             )
 
     async def on_disconnect(self, _: DisconnectEvent):
-        logging.info("TIKTOK: Disconnected from stream. Cleaning up...")
+        """Handles the disconnect event from TikTok LIVE."""
+        was_user_initiated = self._user_initiated_disconnect
+        
+        if was_user_initiated:
+            logging.info("TIKTOK: User-initiated disconnect from stream. Cleaning up...")
+        else:
+            logging.warning("TIKTOK: Unexpected disconnect from stream (stream may have ended). Cleaning up...")
+            
+            # Send notification to debug channel for unexpected disconnects
+            if self.live_host_username and self._connection_start_time:
+                elapsed = int(time.time() - self._connection_start_time)
+                hours, remainder = divmod(elapsed, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                uptime_str = f"{hours}h {minutes}m {seconds}s" if hours > 0 else f"{minutes}m {seconds}s"
+                
+                embed = discord.Embed(
+                    title="⚠️ TikTok Stream Disconnected",
+                    description=f"The TikTok LIVE stream has ended or connection was lost.",
+                    color=discord.Color.orange()
+                )
+                embed.add_field(name="Username", value=f"@{self.live_host_username}", inline=True)
+                embed.add_field(name="Connection Duration", value=uptime_str, inline=True)
+                embed.add_field(name="Session ID", value=f"{self.current_session_id or 'N/A'}", inline=True)
+                embed.set_footer(text="Post-live metrics will be posted to the configured metrics channel")
+                embed.timestamp = discord.utils.utcnow()
+                
+                await self._send_debug_notification(embed)
+        
         await self._cleanup_connection()
 
     async def _handle_interaction(self, event, interaction_type: str, points: int, value: Optional[str] = None, coin_value: Optional[int] = None):
