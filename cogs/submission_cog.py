@@ -21,10 +21,11 @@ CLOUD_STORAGE_DOMAINS = [
 
 class SkipQuestionView(discord.ui.View):
     """Asks the user if their submission is a skip."""
-    def __init__(self, bot, submission_data: dict):
+    def __init__(self, bot, submission_data: dict, provided_handle: Optional[str] = None):
         super().__init__(timeout=180)
         self.bot = bot
         self.submission_data = submission_data
+        self.provided_handle = provided_handle
         self.message: Optional[discord.Message] = None
 
     async def on_timeout(self):
@@ -38,7 +39,7 @@ class SkipQuestionView(discord.ui.View):
         self.submission_data['is_skip'] = True
         # Determine queue line and add it to submission_data
         self.submission_data['queue_line'] = QueueLine.PENDING_SKIPS.value
-        await _begin_submission_process(self.bot, interaction, self.submission_data)
+        await _begin_submission_process(self.bot, interaction, self.submission_data, self.provided_handle)
         self.stop()
 
     @discord.ui.button(label="No", style=discord.ButtonStyle.grey)
@@ -46,7 +47,7 @@ class SkipQuestionView(discord.ui.View):
         self.submission_data['is_skip'] = False
         # Determine queue line and add it to submission_data
         self.submission_data['queue_line'] = QueueLine.FREE.value
-        await _begin_submission_process(self.bot, interaction, self.submission_data)
+        await _begin_submission_process(self.bot, interaction, self.submission_data, self.provided_handle)
         self.stop()
 
 
@@ -71,19 +72,37 @@ class TikTokHandleModal(discord.ui.Modal, title='Enter Your TikTok Handle'):
         await _complete_submission(self.bot, interaction, self.submission_data, tiktok_username)
 
 
-async def _begin_submission_process(bot, interaction: discord.Interaction, submission_data: dict):
+async def _begin_submission_process(bot, interaction: discord.Interaction, submission_data: dict, provided_handle: Optional[str] = None):
     """
     Begins the finalization process by checking for a linked TikTok handle
     or asking for one if not found.
     """
     # Pass the interaction along to the finalizer, which will handle the response.
-    await _finalize_submission(bot, interaction, submission_data)
+    await _finalize_submission(bot, interaction, submission_data, provided_handle)
 
 
-async def _finalize_submission(bot, interaction: discord.Interaction, submission_data):
+async def _finalize_submission(bot, interaction: discord.Interaction, submission_data, provided_handle: Optional[str] = None):
     """Finalize the submission process and add to database."""
 
-    # First, check if the user already has a linked TikTok handle
+    # First, check if a handle was provided directly
+    if provided_handle:
+        tiktok_username = provided_handle.strip().lstrip('@')
+        # Validate that this handle exists in the database
+        async with bot.db.pool.acquire() as conn:
+            handle_exists = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM tiktok_accounts WHERE handle_name = $1)",
+                tiktok_username
+            )
+        if not handle_exists:
+            await interaction.followup.send(
+                f"❌ The TikTok handle `@{tiktok_username}` is not in our database. Please choose from the autocomplete suggestions (handles that have been seen on stream).",
+                ephemeral=True
+            )
+            return
+        await _complete_submission(bot, interaction, submission_data, tiktok_username)
+        return
+
+    # Check if the user already has a linked TikTok handle
     async with bot.db.pool.acquire() as conn:
         existing_handle = await conn.fetchval(
             "SELECT handle_name FROM tiktok_accounts WHERE linked_discord_id = $1 LIMIT 1",
@@ -95,9 +114,13 @@ async def _finalize_submission(bot, interaction: discord.Interaction, submission
         tiktok_username = existing_handle
         await _complete_submission(bot, interaction, submission_data, tiktok_username)
     else:
-        # No linked handle found, ask the user to provide one
-        modal = TikTokHandleModal(bot, submission_data)
-        await interaction.response.send_modal(modal)
+        # No linked handle and no provided handle
+        await interaction.followup.send(
+            "❌ You don't have a linked TikTok handle. Please either:\n"
+            "1. Use `/link-tiktok` to link your handle, OR\n"
+            "2. Provide your TikTok handle using the submission command's `tiktok_handle` parameter with autocomplete.",
+            ephemeral=True
+        )
 
 
 async def _complete_submission(bot, interaction: discord.Interaction, submission_data, tiktok_username: str):
@@ -141,7 +164,7 @@ async def _complete_submission(bot, interaction: discord.Interaction, submission
         embed.add_field(name="TikTok Handle", value=f"@{tiktok_username}", inline=True)
         embed.add_field(name="Points Earned", value="+10 points", inline=True)
 
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     except Exception as e:
         logging.error(f"Error adding submission: {e}", exc_info=True)
@@ -155,9 +178,10 @@ async def _complete_submission(bot, interaction: discord.Interaction, submission
 
 
 class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
-    def __init__(self, bot):
+    def __init__(self, bot, provided_handle: Optional[str] = None):
         super().__init__()
         self.bot = bot
+        self.provided_handle = provided_handle
     artist_name = discord.ui.TextInput(label='Artist Name', required=True, max_length=100)
     song_name = discord.ui.TextInput(label='Song Name', required=True, max_length=100)
     link = discord.ui.TextInput(label='Music Link', required=True, max_length=500)
@@ -171,7 +195,7 @@ class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
             'note': str(self.note.value).strip() if self.note.value else None
         }
         await interaction.response.defer(ephemeral=True)
-        skip_view = SkipQuestionView(self.bot, submission_data)
+        skip_view = SkipQuestionView(self.bot, submission_data, self.provided_handle)
         embed = discord.Embed(title="Is this submission a skip?", description="Please let us know if you intend for this to be a skip submission.", color=discord.Color.blue())
         message = await interaction.followup.send(embed=embed, view=skip_view, ephemeral=True)
         skip_view.message = message
@@ -373,6 +397,11 @@ class SubmissionCog(commands.Cog):
     async def cog_load(self):
         self.bot.add_view(self.submission_view)
 
+    async def tiktok_handle_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        """Autocomplete for all known TikTok handles."""
+        handles = await self.bot.db.get_all_tiktok_handles(current)
+        return [app_commands.Choice(name=handle, value=handle) for handle in handles]
+
     @app_commands.command(name="my-submissions", description="View and manage your submission history.")
     async def my_submissions(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -385,12 +414,21 @@ class SubmissionCog(commands.Cog):
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @app_commands.command(name="submit", description="Submit music for review using a link.")
-    async def submit(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(SubmissionModal(self.bot))
+    @app_commands.autocomplete(tiktok_handle=tiktok_handle_autocomplete)
+    @app_commands.describe(tiktok_handle="(Optional) Your TikTok handle - only needed if not linked")
+    async def submit(self, interaction: discord.Interaction, tiktok_handle: Optional[str] = None):
+        await interaction.response.send_modal(SubmissionModal(self.bot, tiktok_handle))
 
     @app_commands.command(name="submitfile", description="Submit an audio file for review.")
-    @app_commands.describe(file="Your audio file.", artist_name="The artist's name.", song_title="The song's title.", note="Optional note for the host.")
-    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_title: str, note: Optional[str] = None):
+    @app_commands.autocomplete(tiktok_handle=tiktok_handle_autocomplete)
+    @app_commands.describe(
+        file="Your audio file.", 
+        artist_name="The artist's name.", 
+        song_title="The song's title.", 
+        note="Optional note for the host.",
+        tiktok_handle="(Optional) Your TikTok handle - only needed if not linked"
+    )
+    async def submit_file(self, interaction: discord.Interaction, file: discord.Attachment, artist_name: str, song_title: str, note: Optional[str] = None, tiktok_handle: Optional[str] = None):
         if not file.content_type or not file.content_type.startswith('audio/'):
             await interaction.response.send_message("❌ The uploaded file does not appear to be an audio file.", ephemeral=True)
             return
@@ -403,7 +441,7 @@ class SubmissionCog(commands.Cog):
         }
 
         await interaction.response.defer(ephemeral=True)
-        skip_view = SkipQuestionView(self.bot, submission_data)
+        skip_view = SkipQuestionView(self.bot, submission_data, tiktok_handle)
         embed = discord.Embed(title="Is this submission a skip?", description="Please let us know if you intend for this to be a skip submission.", color=discord.Color.blue())
         message = await interaction.followup.send(embed=embed, view=skip_view, ephemeral=True)
         skip_view.message = message

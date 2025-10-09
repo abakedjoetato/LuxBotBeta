@@ -240,6 +240,10 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             tiktok_account_id = await self.bot.db.upsert_tiktok_account(event.user.unique_id)
             await self.bot.db.log_tiktok_interaction(self.current_session_id, tiktok_account_id, interaction_type, value, coin_value)
 
+            # Add points to TikTok handle directly (regardless of Discord link)
+            await self.bot.db.add_points_to_tiktok_handle(event.user.unique_id, points)
+            
+            # Also add points to linked Discord user if exists
             discord_id = await self.bot.db.get_discord_id_from_handle(event.user.unique_id)
             if discord_id:
                 await self.bot.db.add_points_to_user(discord_id, points)

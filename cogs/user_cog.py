@@ -96,23 +96,44 @@ class UserCog(commands.Cog):
             logging.error(f"Error fetching linked handles for user {interaction.user.id}: {e}", exc_info=True)
             await interaction.followup.send("An unexpected error occurred while fetching your linked accounts.", ephemeral=True)
 
-    @app_commands.command(name="resetpoints", description="[ADMIN] Reset a user's engagement points to zero.")
-    @app_commands.describe(user="The Discord user whose points you want to reset.")
+    @app_commands.command(name="resetpoints", description="[ADMIN] Reset points for a user (and linked handles) or ALL handles.")
+    @app_commands.describe(
+        user="The Discord user whose points to reset (leave empty for All)",
+        reset_all="Set to True to reset ALL TikTok handles in the system"
+    )
     @app_commands.checks.has_permissions(administrator=True)
-    async def reset_points(self, interaction: discord.Interaction, user: discord.Member):
-        """Allows an admin to manually reset a user's engagement points."""
+    async def reset_points(self, interaction: discord.Interaction, user: Optional[discord.Member] = None, reset_all: bool = False):
+        """Allows an admin to reset points for a user and linked handles, or all handles."""
         await interaction.response.defer(ephemeral=True)
         try:
-            await self.bot.db.reset_user_points(user.id)
-            embed = discord.Embed(
-                title="✅ Points Reset",
-                description=f"Successfully reset the engagement points for {user.mention} to zero.",
-                color=discord.Color.green()
-            )
+            if reset_all:
+                # Reset ALL TikTok handles
+                await self.bot.db.reset_all_tiktok_handles_points()
+                embed = discord.Embed(
+                    title="✅ All Points Reset",
+                    description="Successfully reset the engagement points for ALL TikTok handles to zero.",
+                    color=discord.Color.green()
+                )
+            elif user:
+                # Reset specific user and their linked handles
+                await self.bot.db.reset_user_and_linked_handles_points(user.id)
+                embed = discord.Embed(
+                    title="✅ Points Reset",
+                    description=f"Successfully reset the engagement points for {user.mention} and all their linked TikTok handles to zero.",
+                    color=discord.Color.green()
+                )
+            else:
+                # No user provided and reset_all not set
+                embed = discord.Embed(
+                    title="❌ Invalid Parameters",
+                    description="Please provide either a user to reset, or set reset_all to True to reset all handles.",
+                    color=discord.Color.red()
+                )
+            
             await interaction.followup.send(embed=embed, ephemeral=True)
         except Exception as e:
-            logging.error(f"Error resetting points for user {user.id} by admin {interaction.user.id}: {e}", exc_info=True)
-            await interaction.followup.send(f"An error occurred while resetting points for {user.mention}.", ephemeral=True)
+            logging.error(f"Error resetting points by admin {interaction.user.id}: {e}", exc_info=True)
+            await interaction.followup.send("An error occurred while resetting points.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
