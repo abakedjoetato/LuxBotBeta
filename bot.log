@@ -272,3 +272,12 @@ discord.app_commands.errors.CommandInvokeError: Command 'status' raised an excep
 2025-10-09 13:47:27,392:INFO:root: Database initialized successfully.
 2025-10-09 13:47:28,937:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
 2025-10-09 13:47:29,802:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: fed1b826b091add8323c39793070ea2c).
+2025-10-09 14:35:43,598:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 14:35:43,603:INFO:discord.client: logging in using static token
+2025-10-09 14:35:44,229:INFO:root: Database pool created.
+2025-10-09 14:35:44,245:INFO:root: Database initialized successfully.
+2025-10-09 14:35:45,621:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 14:35:45,635:INFO:root: SelfHealingCog loaded. Starting auto-healing sequence...
+2025-10-09 14:35:45,635:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-09 14:35:48,640:INFO:root: ✅ Auto-healing sequence completed successfully.
+2025-10-09 14:35:49,477:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: dc2f6071ee51d55c1cf215fdaf23e299).
