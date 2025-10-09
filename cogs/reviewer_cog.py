@@ -71,8 +71,14 @@ class ReviewerCog(commands.Cog):
         self.pending_skips_page = 0
 
     async def cog_load(self):
-        """On cog load, find the queue messages if they exist."""
+        """On cog load, register persistent views and find the queue messages if they exist."""
         await self.bot._send_trace("ReviewerCog cog_load started.")
+        
+        # FIXED BY Replit: Register persistent views for this cog
+        self.bot.add_view(ReviewerMainQueueView(self))
+        self.bot.add_view(PendingSkipsView(self))
+        await self.bot._send_trace("Registered ReviewerCog persistent views.")
+        
         channel_id = self.bot.settings_cache.get('reviewer_channel_id')
         if not channel_id:
             return

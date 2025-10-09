@@ -1,0 +1,43 @@
+Context: This Discord bot handles submissions, TikTok handle linking, queues, and points tracking. The following functionality issues must be identified, repaired, and validated:
+
+Queue pagination and auto-updating:
+
+The queue display must be paginated for large lists.
+Pages should automatically refresh when the queue changes.
+Detect if current pagination logic exists; if missing or static, implement dynamic update listeners tied to message edits or interactions.
+Submission channel cleanup:
+
+In the submission channel, only allow messages from admins or the bot itself.
+Automatically delete or ignore any message not from these sources.
+Confirm correct permissions are used (Manage Messages or equivalent).
+TikTok handle linking:
+
+Linking system must use autocomplete from a locally stored list of known TikTok handles previously gathered from live sessions.
+Validate that any entered handle exists in the database before linking.
+Prevent multiple Discord users from linking to the same TikTok handle, but allow one Discord user to have multiple TikTok handles.
+Generate error messages when a handle is invalid or already linked.
+Submission storage and resubmission:
+
+Submissions must be stored persistently (JSON, database, or equivalent).
+Each submission should retain all metadata: user ID, timestamp, TikTok handle, and submission content.
+Users must be able to view, select, and requeue their previous submissions.
+Ensure data isolation — users may only access their own stored submissions.
+Points tracking:
+
+Points must be tracked per Discord account, regardless of linked TikTok handles.
+Verify correct increment/decrement logic, database persistence, and leaderboard functionality.
+Add periodic save/backup task to avoid data loss.
+Instructions for Google Jules:
+
+Scan all source files for relevant modules (queue, submission, points, tiktok_link, database, bot).
+Identify functions that partially implement the above logic and analyze for completeness.
+For missing or incorrect functionality, automatically generate and insert minimal, functional code patches that comply with Discord.py (or Pycord) standards.
+Annotate all changes with # FIXED BY JULES comments for developer review.
+Run static analysis to confirm no syntax errors or unreferenced functions remain.
+Produce a concise structured report including:
+Each issue number (1–5)
+Files modified
+Functions updated or added
+Confidence level of correctness
+TODOs requiring manual testing
+Output the final report in JSON format.

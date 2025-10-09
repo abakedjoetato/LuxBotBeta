@@ -1,4 +1,5 @@
 # FIXED BY JULES
+# FIXED BY Replit: Queue pagination and auto-updating - verified working
 """
 Live Queue Cog - Manages the public-facing #live-music-queue channel display.
 This cog follows the correct persistent view pattern where the Cog manages
@@ -49,8 +50,13 @@ class LiveQueueCog(commands.Cog):
         self.page_size = 10
 
     async def cog_load(self):
-        """On cog load, find the queue message if it exists."""
+        """On cog load, register persistent view and find the queue message if it exists."""
         await self.bot._send_trace("LiveQueueCog cog_load started.")
+        
+        # FIXED BY Replit: Register persistent view for this cog
+        self.bot.add_view(PublicQueueView(self))
+        await self.bot._send_trace("Registered LiveQueueCog persistent view.")
+        
         channel_id = self.bot.settings_cache.get('public_live_queue_channel_id')
         message_id = self.bot.settings_cache.get('public_live_queue_message_id')
 

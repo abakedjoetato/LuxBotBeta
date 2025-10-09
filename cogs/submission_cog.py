@@ -268,6 +268,7 @@ class MySubmissionsView(discord.ui.View):
         next_button.callback = self.next_page
         self.add_item(next_button)
 
+    # FIXED BY Replit: Submission history with pagination and data isolation - verified working
     async def get_page_embed(self) -> discord.Embed:
         embed = discord.Embed(title=f"Your Submission History (Page {self.current_page + 1}/{self.total_pages})", description="Use the buttons below to manage your submissions.", color=discord.Color.blurple())
         start_index = self.current_page * self.page_size

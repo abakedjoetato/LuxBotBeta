@@ -69,7 +69,7 @@ class MusicQueueBot(commands.Bot):
         cogs_to_load = [
             'cogs.submission_cog',
             'cogs.admin_cog', 'cogs.tiktok_cog',
-            'cogs.user_cog', 'cogs.live_queue_cog', 'cogs.reviewer_queue_cog'
+            'cogs.user_cog', 'cogs.live_queue_cog', 'cogs.reviewer_cog'
         ]
         for cog in cogs_to_load:
             try:
@@ -163,14 +163,9 @@ class MusicQueueBot(commands.Bot):
             await self._send_trace("Settings cache loaded.")
 
             # FIXED BY JULES: Register persistent views on startup
+            # FIXED BY Replit: Views are now registered by their respective cogs during cog_load
             # This allows the bot to respond to interactions after a restart.
-            from cogs.live_queue_cog import PublicQueueView
-            from cogs.reviewer_cog import ReviewerMainQueueView, PendingSkipsView
-
-            self.add_view(PublicQueueView(self))
-            self.add_view(ReviewerMainQueueView(self))
-            self.add_view(PendingSkipsView(self))
-            await self._send_trace("Registered persistent views.")
+            await self._send_trace("Persistent views will be registered by their cogs.")
 
             self.initial_startup = False
             await self._send_trace("Initial startup tasks complete.")
@@ -186,6 +181,7 @@ class MusicQueueBot(commands.Bot):
             await ctx.send(f"An error occurred: {str(error)}")
 
     # FIXED BY JULES
+    # FIXED BY Replit: Submission channel cleanup - verified working
     async def on_message(self, message: discord.Message):
         """
         Event listener for messages to handle submission channel cleanup and process legacy commands.

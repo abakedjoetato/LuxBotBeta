@@ -2,3 +2,40 @@
 2025-10-01 01:43:09,084:INFO:root: Please set your Discord bot token in the environment variables.
 2025-10-01 01:43:09,084:INFO:root: You can get a bot token from https://discord.com/developers/applications
 2025-10-08 06:42:14,295:CRITICAL:root: DISCORD_BOT_TOKEN environment variable not found! The bot cannot start.
+2025-10-09 03:49:40,962:CRITICAL:root: DISCORD_BOT_TOKEN environment variable not found! The bot cannot start.
+2025-10-09 03:54:40,318:CRITICAL:root: DISCORD_BOT_TOKEN environment variable not found! The bot cannot start.
+2025-10-09 03:54:43,422:CRITICAL:root: DISCORD_BOT_TOKEN environment variable not found! The bot cannot start.
+2025-10-09 03:59:02,978:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 03:59:02,978:INFO:discord.client: logging in using static token
+2025-10-09 03:59:07,218:INFO:root: Database pool created.
+2025-10-09 03:59:07,297:INFO:root: Database initialized successfully.
+2025-10-09 03:59:08,733:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 03:59:09,209:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: e6c49eef10e6a78beeef68a0438c09cc).
+2025-10-09 03:59:44,013:INFO:httpx: HTTP Request: GET https://www.tiktok.com/@blckprty/live? "HTTP/1.1 200 OK"
+2025-10-09 03:59:44,682:INFO:httpx: HTTP Request: GET https://webcast.tiktok.com/webcast/room/check_alive/?aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-CA&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2014_7%29%20AppleWebKit%2F605.1.15%20%28KHTML%2C%20like%20Gecko%29%20Version%2F17.6%20Safari%2F605.1.15&cookie_enabled=true&device_platform=web_pc&focus_state=true&from_page=&history_len=11&is_fullscreen=false&is_page_visible=true&screen_height=2160&screen_width=3840&tz_name=America/Toronto&channel=tiktok_web&data_collection_enabled=true&os=mac&priority_region=CA&region=CA&user_is_login=false&webcast_language=en&msToken=&referer=https://www.tiktok.com/@@blckprty/live&root_referer=https://www.tiktok.com/@@blckprty/live&device_id=28801119695174020534&room_id=7559052655772486413&room_ids=7559052655772486413 "HTTP/1.1 200 OK"
+2025-10-09 03:59:45,637:INFO:httpx: HTTP Request: GET https://tiktok.eulerstream.com/webcast/fetch/?client=ttlive-python&room_id=7559052655772486413&user_agent=Mozilla%2F5.0+%28Macintosh%3B+Intel+Mac+OS+X+14_7%29+AppleWebKit%2F605.1.15+%28KHTML%2C+like+Gecko%29+Version%2F17.6+Safari%2F605.1.15&platform=web&client_enter=true "HTTP/1.1 200 OK"
+2025-10-09 03:59:45,679:INFO:root: TIKTOK: Internal connection state has been reset.
+2025-10-09 03:59:46,304:ERROR:asyncio: Exception in callback AsyncIOEventEmitter._emit_run.<locals>.callback(<Task finishe...e 'room_id'")>) at /home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pyee/asyncio.py:97
+handle: <Handle AsyncIOEventEmitter._emit_run.<locals>.callback(<Task finishe...e 'room_id'")>) at /home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pyee/asyncio.py:97>
+Traceback (most recent call last):
+  File "/nix/store/7d088dip86hlzri9sk0h78b63yfmx0a0-python3-3.11.13/lib/python3.11/asyncio/events.py", line 84, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pyee/asyncio.py", line 105, in callback
+    self.emit("error", exc)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pyee/asyncio.py", line 70, in emit
+    return super().emit(event, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pyee/base.py", line 223, in emit
+    self._emit_handle_potential_error(event, args[0] if args else None)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pyee/base.py", line 181, in _emit_handle_potential_error
+    raise error
+  File "/home/runner/workspace/cogs/tiktok_cog.py", line 211, in on_connect
+    logging.info(f"TIKTOK: Connected to room ID {self.bot.tiktok_client.room_id}")
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'room_id'
+2025-10-09 04:09:21,298:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 04:09:21,301:INFO:discord.client: logging in using static token
+2025-10-09 04:09:22,055:INFO:root: Database pool created.
+2025-10-09 04:09:22,067:INFO:root: Database initialized successfully.
+2025-10-09 04:09:23,512:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 04:09:24,050:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: 981a771cea4fdfa682cd195b4dad8e41).

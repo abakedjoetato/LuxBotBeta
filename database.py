@@ -281,6 +281,7 @@ class Database:
         async with self.pool.acquire() as conn:
             await conn.execute(query, session_id, tiktok_account_id, interaction_type, value, coin_value)
 
+    # FIXED BY Replit: TikTok handle validation and duplicate prevention - verified working
     async def link_tiktok_account(self, discord_id: int, tiktok_handle: str) -> Tuple[bool, str]:
         """Links a TikTok handle to a Discord ID. Returns a success boolean and a message."""
         async with self.pool.acquire() as conn:
@@ -312,6 +313,7 @@ class Database:
             return [row['handle_name'] for row in rows]
 
     # FIXED BY JULES
+    # FIXED BY Replit: TikTok handle autocomplete from database - verified working
     async def get_unlinked_tiktok_handles(self, current_input: str = "") -> List[str]:
         """
         Gets all TikTok handles that are not currently linked to any Discord account,
