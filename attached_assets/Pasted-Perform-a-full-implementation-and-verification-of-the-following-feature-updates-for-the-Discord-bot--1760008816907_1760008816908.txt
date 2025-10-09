@@ -1,0 +1,154 @@
+Perform a full implementation and verification of the following feature updates for the Discord bot codebase.
+Ensure all logic is modular, consistent, and optimized for stability, speed, and maintainability.
+
+
+---
+
+1. TikTok Handle Request (Autocomplete Integration)
+
+During the submission process, when the bot requests a TikTok handle, it must use the same autocomplete system and logic as the /link-tiktok command.
+
+Autocomplete must pull suggestions from all known TikTok handles stored in the database.
+
+If a user types a handle not in the known list, reject it gracefully and prompt them to choose from valid existing handles.
+
+
+
+---
+
+2. Submission Confirmation Message
+
+The message confirming a successful submission (e.g., “Submission added”) must be ephemeral — visible only to the submitting user and never sent to the public channel.
+
+The message should retain all existing contextual details and embeds.
+
+
+
+---
+
+3. Reset Points Behavior
+
+Modify the reset points command so that it:
+
+Resets all points for every TikTok handle attached to the selected Discord user.
+
+Accepts the keyword "All" as a valid argument to reset points for every TikTok handle in the system.
+
+
+Ensure point resets propagate instantly and are reflected across all active views, leaderboards, and queues.
+
+
+
+---
+
+4. Points Accumulation Logic
+
+Adjust the point accumulation logic so that:
+
+TikTok handles gain points regardless of whether they’re linked to a Discord user.
+
+Handles continue earning points even without any active song in any queue or line.
+
+
+Points persist in the database until manually reset or automatically cleared by a trigger rule.
+
+
+
+---
+
+5. Free Line Play Reset
+
+If a song is played from the Free Line and only from that line:
+
+Reset all points for the user who submitted that song and for all TikTok handles attached to them.
+
+
+Ensure that other queue lines (paid, premium, priority, etc.) do not trigger this reset.
+
+
+
+---
+
+6. Reviewer View Enhancement
+
+Update reviewer view behavior:
+
+List each song in queue order, showing artist name and TikTok handle (if available).
+
+Include a detailed points breakdown using emojis to represent source types:
+
+👍 = likes
+
+💬 = comments
+
+🔁 = shares
+
+🪙 = coins (gifts)
+
+
+Example:
+
+🎵 [Song Title] — by [ArtistName] (@TikTokHandle)
+Points: 👍 32 | 💬 8 | 🔁 4 | 🪙 2 → Total: 46 pts
+
+
+
+
+---
+
+7. Persistent, Auto-Refreshing Views
+
+All interactive and visual elements (queues, reviewer views, submissions, point breakdowns, etc.) must be persistent and automatically refreshed.
+
+Never expire or time out.
+
+Always reflect live, current data — auto-updating on any submission, deletion, point change, or reset event.
+
+Use either periodic background updates or event-based listeners for efficient real-time synchronization.
+
+
+
+
+---
+
+8. Queue and Line Embed Pagination
+
+All embeds representing queues and lines (free, premium, or any other type) must:
+
+Be paginated, with intuitive navigation (Next ⏭️ / Previous ⏮️) and clear page indicators (e.g., “Page 2 of 5”).
+
+Be persistent, meaning they never expire, even after the usual Discord embed timeout period.
+
+Be auto-refreshing, dynamically updating to reflect:
+
+New songs added or removed
+
+Updated points, positions, or statuses
+
+User link or unlink events
+
+
+Handle multiple users viewing pages simultaneously without race conditions or outdated states.
+
+
+Consider caching data to reduce database calls while keeping refresh intervals under ~10 seconds for near real-time accuracy.
+
+
+
+---
+
+Final Notes
+
+Review and, if needed, refactor the database schema for scalable handling of persistent embeds and auto-refresh logic.
+
+Ensure all embeds and paginations are handled via robust async event updates.
+
+Test all functionalities thoroughly in a sandbox environment before production deployment.
+
+Provide a final summary of:
+
+All updated files and functions
+
+New commands or listeners added
+
+Any dependencies or libraries introduced for persistence or pagination handling
