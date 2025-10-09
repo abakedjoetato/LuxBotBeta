@@ -45,3 +45,4 @@ AttributeError: 'NoneType' object has no attribute 'room_id'
 2025-10-09 05:24:04,835:INFO:root: Database pool created.
 2025-10-09 05:24:04,892:INFO:root: Database initialized successfully.
 2025-10-09 05:24:05,892:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: df4bac361bb1e536e253179b9dbc3877).
+2025-10-09 05:50:17,560:CRITICAL:root: DISCORD_BOT_TOKEN environment variable not found! The bot cannot start.
