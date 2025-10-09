@@ -139,6 +139,14 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         self._connect_interaction = None
         logging.info("TIKTOK: Internal connection state has been reset.")
 
+    async def _cleanup_connection(self):
+        """Handles cleanup when disconnecting from TikTok LIVE."""
+        if self.current_session_id:
+            await self.bot.db.end_live_session(self.current_session_id)
+            summary = await self.bot.db.get_live_session_summary(self.current_session_id)
+            await self._post_live_summary(summary)
+        self._reset_state()
+
     async def _post_live_summary(self, summary: Dict[str, int]):
         """Posts the live session summary to the admin/debug channel."""
         debug_channel_id = self.bot.settings_cache.get('debug_channel_id')
