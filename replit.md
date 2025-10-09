@@ -8,6 +8,52 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Updates
 
+### Discord Interaction Timeout Fixes (2025-10-09) ✅
+**Problem Solved**: Users reported "Unknown interaction" errors (404 error code 10062) when using `/tiktok connect`, `/tiktok status`, `/tiktok disconnect`, and other commands. Analysis revealed that Discord interactions expire after 3 seconds if not acknowledged.
+
+**Root Cause**:
+- Commands with database queries or async operations took longer than 3 seconds to respond
+- Discord expects acknowledgment within 3 seconds or interaction becomes invalid
+- Without immediate defer, long-running commands fail with "Unknown interaction" error
+
+**Solution Implemented - Defer-First Pattern**:
+
+1. **All TikTok Commands Fixed**
+   - `/tiktok connect`: Added `await interaction.response.defer()` before database queries
+   - `/tiktok status`: Added immediate defer before checking connection state
+   - `/tiktok disconnect`: Added immediate defer before cleanup operations
+   - All commands now use: defer → process → followup (or edit_original_response)
+
+2. **Admin Commands Fixed**
+   - `/move`: Defers before database operations
+   - `/remove`: Defers before queue manipulation
+   - `/next`: Defers before playing next song
+   - `/clearfree`: Defers before clearing Free queue
+   - `/setbookmarkchannel`, `/setnowplayingchannel`: Defer before settings update
+   - `/setup-post-live-metrics`: Defers before channel configuration
+
+3. **Persistent View Button Interactions Fixed**
+   - Submission button callbacks now defer immediately
+   - Critical for persistent views (timeout=None) which can have stale interactions
+   - Pattern: `await interaction.response.defer(ephemeral=True)` → process → followup
+
+**Design Pattern**:
+```python
+# ✅ CORRECT - Defer first, process later
+await interaction.response.defer(ephemeral=True)
+# ... database queries, async operations ...
+await interaction.followup.send("Done!")
+
+# ❌ INCORRECT - Will timeout if processing takes >3s
+# ... database queries, async operations ...
+await interaction.response.send_message("Done!")
+```
+
+**Testing Results**:
+- Bot restarted with zero interaction timeout errors
+- All commands now respond within Discord's 3-second window
+- Clean logs confirm no "Unknown interaction" errors after fixes
+
 ### TikTok Disconnect Notifications (2025-10-09) ✅
 **Problem Solved**: Users reported that TikTok connections claimed success but then `/tiktok status` showed "not connected". Analysis revealed that streams were disconnecting silently without any user notification.
 

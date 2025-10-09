@@ -82,6 +82,9 @@ class LiveQueueCog(commands.Cog):
         if not self.queue_message:
             return
 
+        if interaction:
+            await interaction.response.defer()
+
         if reset_page:
             self.current_page = 0
         else:

@@ -36,6 +36,7 @@ class SkipQuestionView(discord.ui.View):
 
     @discord.ui.button(label="Yes, it's a skip", style=discord.ButtonStyle.success)
     async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
         self.submission_data['is_skip'] = True
         # Determine queue line and add it to submission_data
         self.submission_data['queue_line'] = QueueLine.PENDING_SKIPS.value
@@ -44,6 +45,7 @@ class SkipQuestionView(discord.ui.View):
 
     @discord.ui.button(label="No", style=discord.ButtonStyle.grey)
     async def no_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
         self.submission_data['is_skip'] = False
         # Determine queue line and add it to submission_data
         self.submission_data['queue_line'] = QueueLine.FREE.value

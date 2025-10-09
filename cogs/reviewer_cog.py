@@ -112,6 +112,9 @@ class ReviewerCog(commands.Cog):
         if not self.main_queue_message:
             return
 
+        if interaction:
+            await interaction.response.defer()
+
         if reset_page:
             self.main_queue_page = 0
         else:
@@ -170,6 +173,9 @@ class ReviewerCog(commands.Cog):
     async def update_pending_skips_display(self, interaction: Optional[discord.Interaction] = None, page_offset: int = 0, reset_page: bool = False):
         if not self.pending_skips_message:
             return
+
+        if interaction:
+            await interaction.response.defer()
 
         if reset_page:
             self.pending_skips_page = 0
