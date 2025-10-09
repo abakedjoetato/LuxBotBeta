@@ -254,3 +254,15 @@ discord.app_commands.errors.CommandInvokeError: Command 'status' raised an excep
 2025-10-09 13:32:42,740:INFO:root: TIKTOK: Started live session with ID 4
 2025-10-09 13:34:13,147:INFO:root: TIKTOK: User-initiated disconnect from stream. Cleaning up...
 2025-10-09 13:34:13,379:INFO:root: TIKTOK: Internal connection state has been reset.
+2025-10-09 13:41:30,187:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 13:41:30,188:INFO:discord.client: logging in using static token
+2025-10-09 13:41:30,668:INFO:root: Database pool created.
+2025-10-09 13:41:30,682:INFO:root: Database initialized successfully.
+2025-10-09 13:41:31,878:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 13:41:32,533:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: fe99b4c11b93bc78b2c9afd3a86a781d).
+2025-10-09 13:42:37,535:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 13:42:37,536:INFO:discord.client: logging in using static token
+2025-10-09 13:42:38,061:INFO:root: Database pool created.
+2025-10-09 13:42:38,088:INFO:root: Database initialized successfully.
+2025-10-09 13:42:39,340:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 13:42:40,003:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: ae9d046ce0228a97c3bbbc123ac130a1).
