@@ -7,6 +7,8 @@ This Discord bot establishes a TikTok-style music review queue, allowing users t
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 09, 2025)
+
+### Bug Fixes Round 1
 - **Issue #1 Fixed**: Enhanced /next command with diagnostic messaging when only pending skips exist in queue
 - **Issue #2 Verified**: Queue pagination and auto-updating functionality confirmed working (Previous/Next buttons, auto-refresh)
 - **Issue #3 Verified**: Submission channel cleanup confirmed working (admin/bot messages only, auto-deletes user messages)
@@ -18,6 +20,15 @@ Preferred communication style: Simple, everyday language.
   - Updated _post_live_summary() to display comprehensive participant data
   - Metrics show linked Discord users, unlinked participants, and engagement sorting (coins > interactions)
 - Generated comprehensive bug_fix_report.json with all findings, changes, and testing instructions
+
+### Bug Fixes Round 2 - Persistent Views Fix
+- **Queue Order Verification**: Confirmed /next command uses correct priority (25+, 20, 15, 10, 5, then engagement-sorted Free) - no changes needed
+- **Persistent Views Fixed**: Resolved issue where persistent views stopped working after bot restart or /selfheal
+  - Added `reregister_persistent_views()` method to SelfHealingCog
+  - Persistent views now automatically re-register during bot startup (auto-heal)
+  - Persistent views now automatically re-register when admin runs /selfheal command
+  - All interactive buttons (Previous/Next/Refresh) remain functional indefinitely
+- Created change_report_persistent_views_fix.md with detailed analysis and implementation notes
 
 ## System Architecture
 
