@@ -69,7 +69,7 @@ class MusicQueueBot(commands.Bot):
         cogs_to_load = [
             'cogs.submission_cog',
             'cogs.admin_cog', 'cogs.tiktok_cog',
-            'cogs.user_cog', 'cogs.live_queue_cog', 'cogs.reviewer_cog'
+            'cogs.user_cog', 'cogs.live_queue_cog', 'cogs.reviewer_cog', 'cogs.debug_cog'
         ]
         for cog in cogs_to_load:
             try:
