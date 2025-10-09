@@ -464,3 +464,14 @@ Traceback (most recent call last):
   File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 226, in request
     raise HTTPException(response, data)
 discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-10-09 15:48:36,597:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 15:48:36,598:INFO:discord.client: logging in using static token
+2025-10-09 15:48:37,200:INFO:root: Database pool created.
+2025-10-09 15:48:37,321:INFO:root: Database initialized successfully.
+2025-10-09 15:48:39,378:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 15:48:39,415:INFO:root: SelfHealingCog loaded.
+2025-10-09 15:48:40,140:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: fc8b121aa93fbd64a20b27cb86a27ae4).
+2025-10-09 15:48:42,151:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-09 15:48:42,151:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-09 15:48:42,164:INFO:root: Points backup completed: 0 users, 0 TikTok handles
+2025-10-09 15:48:45,154:INFO:root: ✅ Auto-healing sequence completed successfully.

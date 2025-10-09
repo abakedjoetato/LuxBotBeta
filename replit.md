@@ -1,10 +1,23 @@
 # Discord Music Queue Bot
 
 ## Overview
-This Discord bot establishes a TikTok-style music review queue, allowing users to submit music via links or file uploads. It features interactive slash commands, modal forms, and real-time queue management across four priority-based queues (BackToBack, DoubleSkip, Skip, Free) and an archive. Administrators can manage submissions, and the system includes TikTok handle linking, persistent submission storage with resubmission capabilities, and points tracking. The bot also integrates a robust TikTok Live connection system with persistent retries, real-time status monitoring, comprehensive post-live session analytics, and automatic disconnect notifications. The project aims to provide a dynamic and engaging platform for music discovery and review within Discord, leveraging TikTok's live interaction model.
+This Discord bot establishes a TikTok-style music review queue, allowing users to submit music via links or file uploads. It features interactive slash commands, modal forms, and real-time queue management across four priority-based queues (BackToBack, DoubleSkip, Skip, Free) and an archive. Administrators can manage submissions, and the system includes TikTok handle linking, persistent submission storage with resubmission capabilities, and points tracking with hourly JSON backups. The bot also integrates a robust TikTok Live connection system with persistent retries, real-time status monitoring, comprehensive post-live session analytics covering ALL TikTok handles (linked and unlinked), and automatic disconnect notifications. The project aims to provide a dynamic and engaging platform for music discovery and review within Discord, leveraging TikTok's live interaction model.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
+
+## Recent Changes (October 09, 2025)
+- **Issue #1 Fixed**: Enhanced /next command with diagnostic messaging when only pending skips exist in queue
+- **Issue #2 Verified**: Queue pagination and auto-updating functionality confirmed working (Previous/Next buttons, auto-refresh)
+- **Issue #3 Verified**: Submission channel cleanup confirmed working (admin/bot messages only, auto-deletes user messages)
+- **Issue #4 Verified**: TikTok handle linking with autocomplete and duplicate prevention confirmed working
+- **Issue #5 Verified**: Submission storage and resubmission via /my-submissions confirmed working
+- **Issue #6 Implemented**: Hourly points backup system creates timestamped JSON files (points_backup_YYYYMMDD_HH.json)
+- **Issue #7 Implemented**: Post-live metrics now include ALL TikTok handles (linked and unlinked), sorted by engagement
+  - Added database.get_session_all_handles_stats() function
+  - Updated _post_live_summary() to display comprehensive participant data
+  - Metrics show linked Discord users, unlinked participants, and engagement sorting (coins > interactions)
+- Generated comprehensive bug_fix_report.json with all findings, changes, and testing instructions
 
 ## System Architecture
 
@@ -14,8 +27,9 @@ Preferred communication style: Simple, everyday language.
 - **Real-time Embed Updates**: Pinned messages and queue displays auto-update dynamically based on queue changes.
 - **Enhanced Reviewer Display**: Provides detailed points breakdown with emoji decorations for clarity.
 - **Persistent Interactive Views**: All reviewer views and interactive elements maintain activity indefinitely (`timeout=None`).
-- **Post-Live Metrics Channel**: A dedicated channel for structured session analytics after each TikTok LIVE session.
+- **Post-Live Metrics Channel**: A dedicated channel for structured session analytics after each TikTok LIVE session, displaying ALL participants (linked and unlinked).
 - **Disconnect Notifications**: Automatic alerts in a debug channel for unexpected TikTok stream disconnections.
+- **Hourly Points Backup**: Automated JSON backups of all user points and TikTok account points for recovery purposes.
 
 ### Technical Implementations
 - **Async/Await Pattern**: Implemented throughout for non-blocking, concurrent operations.
@@ -37,8 +51,9 @@ Preferred communication style: Simple, everyday language.
 - **Queue Management System**: Four-tier priority (BackToBack, DoubleSkip, Skip, Free) with FIFO processing within tiers.
 - **Single Free Submission Limit**: Enforces one active submission per user in the Free queue.
 - **User Isolation**: Users can only view their own submissions via `/mysubmissions`.
-- **Comprehensive Post-Live Metrics**: Tracks watch time, gift counts, coin values, likes, comments, and shares per user in an ASCII table format.
+- **Comprehensive Post-Live Metrics**: Tracks watch time, gift counts, coin values, likes, comments, and shares for ALL TikTok handles (linked and unlinked) in an ASCII table format, sorted by engagement points.
 - **Enhanced Reset Points System**: Supports multiple modes for resetting points, including targeting specific users and all linked handles, or a global reset.
+- **Hourly Points Backup System**: Automatically creates timestamped JSON backups of user_points and tiktok_accounts data every hour for disaster recovery.
 
 ### System Design Choices
 - **Database Performance Optimizations**: Implemented strategic indices and optimized queries for frequently accessed data, particularly for the Free queue.
