@@ -1,9 +1,0 @@
-[
-  {
-    "file": "cogs/submission_cog.py",
-    "line": 80,
-    "old_attribute": "interaction.is_followup",
-    "new_attribute": "interaction.response.is_done()",
-    "confidence": 1.0
-  }
-]

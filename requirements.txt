@@ -4,8 +4,3 @@ TikTokLive>=2.2.1
 asyncpg>=0.27.0
 psycopg2-binary>=2.9.6
 aiosqlite
-asyncpg
-discord.py
-psycopg2-binary
-python-dotenv
-TikTokLive
