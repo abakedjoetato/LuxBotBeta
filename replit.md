@@ -33,9 +33,11 @@ Preferred communication style: Simple, everyday language.
    - `/setup-post-live-metrics`: Defers before channel configuration
 
 3. **Persistent View Button Interactions Fixed**
-   - Submission button callbacks now defer immediately
+   - **SkipQuestionView** (submission_cog.py): Both `yes_button` and `no_button` callbacks now defer before processing
+   - **Reviewer Queue Views** (reviewer_cog.py): `update_main_queue_display` and `update_pending_skips_display` defer when interaction is provided
+   - **Live Queue View** (live_queue_cog.py): `update_display` defers when interaction is provided before database queries
    - Critical for persistent views (timeout=None) which can have stale interactions
-   - Pattern: `await interaction.response.defer(ephemeral=True)` → process → followup
+   - All buttons that trigger database queries now defer immediately before processing
 
 **Design Pattern**:
 ```python
