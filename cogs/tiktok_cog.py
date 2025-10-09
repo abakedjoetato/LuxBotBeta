@@ -256,69 +256,105 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         self._reset_state()
 
     async def _post_live_summary(self, summary: Dict[str, int]):
-        """Posts the live session summary to the admin/debug channel."""
-        debug_channel_id = self.bot.settings_cache.get('debug_channel_id')
-        if not debug_channel_id: return
-        channel = self.bot.get_channel(int(debug_channel_id))
-        if not channel: return
+        """Posts the live session summary to the post-live metrics channel."""
+        metrics_channel_id = self.bot.settings_cache.get('post_live_metrics_channel_id')
+        if not metrics_channel_id:
+            logging.warning("Post-live metrics channel not configured. Use /setup-post-live-metrics to set it up.")
+            return
+        
+        channel = self.bot.get_channel(int(metrics_channel_id))
+        if not channel:
+            logging.error(f"Post-live metrics channel {metrics_channel_id} not found.")
+            return
 
-        # --- Overall Summary (Existing) ---
-        overall_embed = discord.Embed(
-            title=f"📈 Overall Live Summary for {self.live_host_username}",
-            description="Summary of all interactions during the last session.",
+        # Get per-user stats with watch time
+        user_stats = await self.bot.db.get_session_user_stats(self.current_session_id)
+        
+        if not user_stats:
+            # No linked users participated, still post overall summary
+            embed = discord.Embed(
+                title=f"📊 Post-Live Metrics: @{self.live_host_username}",
+                description="No linked users participated in this session.",
+                color=discord.Color.orange()
+            )
+            embed.set_footer(text=f"Session ID: {self.current_session_id}")
+            embed.timestamp = discord.utils.utcnow()
+            try:
+                await channel.send(embed=embed)
+            except discord.Forbidden:
+                logging.error(f"Missing permissions to send metrics to channel {metrics_channel_id}")
+            return
+
+        def format_watch_time(seconds: float) -> str:
+            """Format watch time from seconds to human-readable format."""
+            if seconds is None or seconds == 0:
+                return "0s"
+            total_seconds = int(seconds)
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            secs = total_seconds % 60
+            if hours > 0:
+                return f"{hours}h {minutes}m {secs}s"
+            elif minutes > 0:
+                return f"{minutes}m {secs}s"
+            else:
+                return f"{secs}s"
+
+        # Build the enhanced metrics table
+        embed = discord.Embed(
+            title=f"📊 Post-Live Metrics: @{self.live_host_username}",
+            description=f"**Session Summary**\nTotal interactions from {len(user_stats)} linked user(s)",
             color=discord.Color.blurple()
         )
-        overall_embed.add_field(name="Likes", value=f"{summary.get('like', 0):,}", inline=True)
-        overall_embed.add_field(name="Comments", value=f"{summary.get('comment', 0):,}", inline=True)
-        overall_embed.add_field(name="Shares", value=f"{summary.get('share', 0):,}", inline=True)
-        overall_embed.add_field(name="Follows", value=f"{summary.get('follow', 0):,}", inline=True)
-        overall_embed.add_field(name="Gifts Received", value=f"{summary.get('gift', 0):,}", inline=True)
-        overall_embed.add_field(name="Total Coins", value=f"{summary.get('gift_coins', 0):,}", inline=True)
-        overall_embed.set_footer(text=f"Session ID: {self.current_session_id}")
-        overall_embed.timestamp = discord.utils.utcnow()
-
-        try:
-            await channel.send(embed=overall_embed)
-        except discord.Forbidden:
-            logging.error(f"Missing permissions to send summary to channel {debug_channel_id}")
-            return # Can't send anything if we don't have perms
-
-        # --- Per-User Summary (New) ---
-        user_stats = await self.bot.db.get_session_user_stats(self.current_session_id)
-        submission_counts = await self.bot.db.get_session_submission_counts(self.current_session_id)
-
-        if not user_stats:
-            return # No users to report on
-
-        user_embed = discord.Embed(
-            title=f"👥 Per-User Stats for {self.live_host_username}",
-            description="Top contributors for the last session.",
-            color=discord.Color.dark_green()
-        )
-        user_embed.set_footer(text=f"Session ID: {self.current_session_id}")
-        user_embed.timestamp = discord.utils.utcnow()
-
-        description_lines = []
-        for i, user_data in enumerate(user_stats[:10]): # Top 10 contributors
+        
+        # Add table header
+        table_lines = [
+            "```",
+            "Discord User     | TikTok Handle  | Watch | Likes | Cmts | Shares | Gifts | Coins",
+            "-" * 85
+        ]
+        
+        # Add user rows (limit to 15 to fit Discord embed limits)
+        for user_data in user_stats[:15]:
             discord_id = user_data['linked_discord_id']
-            user = self.bot.get_user(discord_id) or f"ID: {discord_id}"
-            subs = submission_counts.get(discord_id, 0)
-
-            stats_line = (
-                f"**{i+1}. {user}** (`{user_data['tiktok_username']}`)\n"
-                f"> Subs: `{subs}` | Likes: `{user_data['likes']}` | Comments: `{user_data['comments']}` | "
-                f"Shares: `{user_data['shares']}` | Coins: `{int(user_data['gift_coins'])}`\n"
+            user = self.bot.get_user(discord_id)
+            discord_name = user.display_name[:15] if user else f"ID:{discord_id}"[:15]
+            tiktok_handle = user_data['tiktok_username'][:14]
+            watch_time = format_watch_time(user_data.get('watch_time_seconds', 0))
+            
+            row = (
+                f"{discord_name:<16} | {tiktok_handle:<14} | {watch_time:<5} | "
+                f"{int(user_data['likes']):<5} | {int(user_data['comments']):<4} | "
+                f"{int(user_data['shares']):<6} | {int(user_data.get('gifts', 0)):<5} | {int(user_data['gift_coins']):<5}"
             )
-            description_lines.append(stats_line)
-
-        user_embed.description = "\n".join(description_lines)
-        if len(user_stats) > 10:
-            user_embed.description += f"\n...and {len(user_stats) - 10} more contributors."
+            table_lines.append(row)
+        
+        table_lines.append("```")
+        
+        if len(user_stats) > 15:
+            table_lines.append(f"\n*...and {len(user_stats) - 15} more contributor(s)*")
+        
+        embed.add_field(
+            name="User Interaction Metrics",
+            value="\n".join(table_lines),
+            inline=False
+        )
+        
+        # Add overall session stats as fields
+        embed.add_field(name="Total Likes", value=f"{summary.get('like', 0):,}", inline=True)
+        embed.add_field(name="Total Comments", value=f"{summary.get('comment', 0):,}", inline=True)
+        embed.add_field(name="Total Shares", value=f"{summary.get('share', 0):,}", inline=True)
+        embed.add_field(name="Total Follows", value=f"{summary.get('follow', 0):,}", inline=True)
+        embed.add_field(name="Total Gifts", value=f"{summary.get('gift', 0):,}", inline=True)
+        embed.add_field(name="Total Coins", value=f"{summary.get('gift_coins', 0):,}", inline=True)
+        
+        embed.set_footer(text=f"Session ID: {self.current_session_id}")
+        embed.timestamp = discord.utils.utcnow()
 
         try:
-            await channel.send(embed=user_embed)
+            await channel.send(embed=embed)
         except discord.Forbidden:
-            logging.error(f"Missing permissions to send per-user summary to channel {debug_channel_id}")
+            logging.error(f"Missing permissions to send metrics to channel {metrics_channel_id}")
 
     # --- Event Handlers ---
     async def on_connect(self, _: ConnectEvent):

@@ -482,7 +482,7 @@ class Database:
     async def get_session_user_stats(self, session_id: int) -> List[Dict[str, Any]]:
         """
         Calculates per-user interaction stats for a specific session,
-        grouping by the user.
+        including watch time (calculated as time span from first to last interaction).
         """
         query = """
             SELECT
@@ -491,7 +491,9 @@ class Database:
                 SUM(CASE WHEN ti.interaction_type = 'like' THEN 1 ELSE 0 END) AS likes,
                 SUM(CASE WHEN ti.interaction_type = 'comment' THEN 1 ELSE 0 END) AS comments,
                 SUM(CASE WHEN ti.interaction_type = 'share' THEN 1 ELSE 0 END) AS shares,
-                SUM(CASE WHEN ti.interaction_type = 'gift' THEN ti.coin_value ELSE 0 END) AS gift_coins
+                SUM(CASE WHEN ti.interaction_type = 'gift' THEN 1 ELSE 0 END) AS gifts,
+                SUM(CASE WHEN ti.interaction_type = 'gift' THEN ti.coin_value ELSE 0 END) AS gift_coins,
+                EXTRACT(EPOCH FROM (MAX(ti.timestamp) - MIN(ti.timestamp))) AS watch_time_seconds
             FROM
                 tiktok_interactions ti
             JOIN

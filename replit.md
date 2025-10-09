@@ -100,6 +100,33 @@ Implemented robust TikTok Live connection system with enterprise-grade reliabili
    - Index coverage for: user_id, queue_line, session_id, played_time, submission_time
    - Partial index on Free queue for maximum efficiency
 
+### Post-Live Metrics Channel (2025-10-09)
+Implemented comprehensive post-live session analytics with dedicated metrics channel:
+
+1. **Dedicated Metrics Channel Setup** ✅
+   - `/setup-post-live-metrics` command to configure dedicated metrics channel
+   - Separate from debug channel for clean analytics tracking
+   - Automatic posting of enhanced session summaries after each TikTok LIVE session
+
+2. **Enhanced User Metrics Tracking** ✅
+   - **Watch Time Calculation**: Approximated based on interaction timespan (first to last interaction)
+   - **Gift Count Tracking**: Now tracks both gift count and total coin value separately
+   - **Comprehensive Stats**: Likes, comments, shares, gifts, and coins per user
+   - Displays Discord username alongside TikTok handle for easy identification
+
+3. **Professional Table Format** ✅
+   - ASCII table format with aligned columns for clear data visualization
+   - Shows: Discord User, TikTok Handle, Watch Time, Likes, Comments, Shares, Gifts, Coins
+   - Displays up to 15 top contributors with overflow indication
+   - Session @handle prominently displayed in embed title
+   - Overall session statistics shown as embed fields
+
+4. **Database Enhancements** ✅
+   - Enhanced `get_session_user_stats()` query with watch time calculation
+   - Added gift count aggregation (previously only tracked coin value)
+   - Optimized queries for efficient metrics retrieval
+   - Timestamp-based watch time calculation using MIN/MAX interaction timestamps
+
 ### Code Cleanup & Error Fixes (2025-10-09)
 Successfully completed comprehensive codebase cleanup:
 - ✅ Fixed all critical attribute errors (bot.database → bot.db) across all cogs

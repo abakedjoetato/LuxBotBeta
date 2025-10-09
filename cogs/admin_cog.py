@@ -265,5 +265,17 @@ class AdminCog(commands.Cog):
         embed = discord.Embed(title="✅ 'Now Playing' Channel Set", description=f"Announcements will be sent to {channel.mention}", color=discord.Color.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="setup-post-live-metrics", description="Set the channel for post-live session metrics")
+    @is_admin()
+    async def setup_post_live_metrics(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await self.bot.db.set_bot_config('post_live_metrics_channel_id', channel_id=channel.id)
+        self.bot.settings_cache['post_live_metrics_channel_id'] = channel.id
+        embed = discord.Embed(
+            title="✅ Post-Live Metrics Channel Set", 
+            description=f"Post-live session metrics will be sent to {channel.mention}\n\nThis channel will display detailed user interaction statistics after each TikTok LIVE session.", 
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))
