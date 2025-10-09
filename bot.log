@@ -1282,3 +1282,15 @@ Traceback (most recent call last):
   File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 226, in request
     raise HTTPException(response, data)
 discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-10-09 19:51:20,931:ERROR:discord.ui.view: Ignoring exception in view <SubmissionButtonView timeout=None children=3> for item <Button style=<ButtonStyle.primary: 1> url=None disabled=False label='Submit Link' emoji=<PartialEmoji animated=False name='🔗' id=None> row=None sku_id=None id=None>
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/ui/view.py", line 555, in _scheduled_task
+    await item.callback(interaction)
+  File "/home/runner/workspace/cogs/submission_cog.py", line 236, in submit_link_button
+    await interaction.response.send_modal(SubmissionModal(self.bot))
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1273, in send_modal
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
