@@ -456,34 +456,65 @@ class Database:
         """
         Gets all TikTok handles that are not currently linked to any Discord account,
         for use in autocomplete. Filters by the user's current input.
+        Optimized for fast autocomplete responses (<1 second).
         """
-        query = """
-            SELECT handle_name FROM tiktok_accounts
-            WHERE linked_discord_id IS NULL
-            AND handle_name ILIKE $1
-            ORDER BY last_seen DESC
-            LIMIT 25;
-        """
+        # Use prefix search for better index performance (ILIKE 'input%' can use index)
+        # Only use slow full-text search if user has typed 2+ characters
+        if len(current_input) >= 2:
+            query = """
+                SELECT handle_name FROM tiktok_accounts
+                WHERE linked_discord_id IS NULL
+                AND handle_name ILIKE $1
+                ORDER BY last_seen DESC
+                LIMIT 25;
+            """
+            search_pattern = f"{current_input}%"  # Prefix search only (faster)
+        else:
+            # Return most recent unlinked handles if input is too short
+            query = """
+                SELECT handle_name FROM tiktok_accounts
+                WHERE linked_discord_id IS NULL
+                ORDER BY last_seen DESC
+                LIMIT 25;
+            """
+            search_pattern = None
+        
         async with self.pool.acquire() as conn:
-            # Add wildcards for the ILIKE search
-            search_pattern = f"%{current_input}%"
-            rows = await conn.fetch(query, search_pattern)
+            if search_pattern:
+                rows = await conn.fetch(query, search_pattern)
+            else:
+                rows = await conn.fetch(query)
             return [row['handle_name'] for row in rows]
 
     async def get_all_tiktok_handles(self, current_input: str = "") -> List[str]:
         """
         Gets all known TikTok handles for autocomplete during submission.
         Filters by the user's current input.
+        Optimized for fast autocomplete responses (<1 second).
         """
-        query = """
-            SELECT handle_name FROM tiktok_accounts
-            WHERE handle_name ILIKE $1
-            ORDER BY last_seen DESC
-            LIMIT 25;
-        """
+        # Use prefix search for better index performance
+        if len(current_input) >= 2:
+            query = """
+                SELECT handle_name FROM tiktok_accounts
+                WHERE handle_name ILIKE $1
+                ORDER BY last_seen DESC
+                LIMIT 25;
+            """
+            search_pattern = f"{current_input}%"  # Prefix search only (faster)
+        else:
+            # Return most recent handles if input is too short
+            query = """
+                SELECT handle_name FROM tiktok_accounts
+                ORDER BY last_seen DESC
+                LIMIT 25;
+            """
+            search_pattern = None
+        
         async with self.pool.acquire() as conn:
-            search_pattern = f"%{current_input}%"
-            rows = await conn.fetch(query, search_pattern)
+            if search_pattern:
+                rows = await conn.fetch(query, search_pattern)
+            else:
+                rows = await conn.fetch(query)
             return [row['handle_name'] for row in rows]
 
     async def start_live_session(self, tiktok_username: str) -> int:
