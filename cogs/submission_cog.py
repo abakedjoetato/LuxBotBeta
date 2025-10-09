@@ -36,12 +36,16 @@ class SkipQuestionView(discord.ui.View):
     @discord.ui.button(label="Yes, it's a skip", style=discord.ButtonStyle.success)
     async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.submission_data['is_skip'] = True
+        # Determine queue line and add it to submission_data
+        self.submission_data['queue_line'] = QueueLine.PENDING_SKIPS.value
         await _begin_submission_process(self.bot, interaction, self.submission_data)
         self.stop()
 
     @discord.ui.button(label="No", style=discord.ButtonStyle.grey)
     async def no_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.submission_data['is_skip'] = False
+        # Determine queue line and add it to submission_data
+        self.submission_data['queue_line'] = QueueLine.FREE.value
         await _begin_submission_process(self.bot, interaction, self.submission_data)
         self.stop()
 
@@ -61,73 +65,92 @@ class TikTokHandleModal(discord.ui.Modal, title='Enter Your TikTok Handle'):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Bypassing validation. Just save the handle and finalize.
-        clean_handle = self.handle.value.strip().lstrip('@')
-        self.submission_data['tiktok_username'] = clean_handle
-
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        await _finalize_submission(self.bot, interaction, self.submission_data)
+        # This modal is only shown if a handle isn't linked.
+        # On submit, we proceed to complete the submission with the new handle.
+        tiktok_username = self.handle.value.strip().lstrip('@')
+        await _complete_submission(self.bot, interaction, self.submission_data, tiktok_username)
 
 
 async def _begin_submission_process(bot, interaction: discord.Interaction, submission_data: dict):
     """
-    The new submission process: asks for the TikTok handle directly.
-    This is now called from a button, so we must use interaction.response.send_modal.
+    Begins the finalization process by checking for a linked TikTok handle
+    or asking for one if not found.
     """
-    # This function is now triggered by a button click.
-    # The original interaction from the button click must be responded to.
-    # We respond by sending a new modal.
-    modal = TikTokHandleModal(bot, submission_data)
-    await interaction.response.send_modal(modal)
+    # Pass the interaction along to the finalizer, which will handle the response.
+    await _finalize_submission(bot, interaction, submission_data)
 
 
-async def _finalize_submission(bot, interaction: discord.Interaction, submission_data: dict):
+async def _finalize_submission(bot, interaction: discord.Interaction, submission_data):
+    """Finalize the submission process and add to database."""
+
+    # First, check if the user already has a linked TikTok handle
+    async with bot.database.pool.acquire() as conn:
+        existing_handle = await conn.fetchval(
+            "SELECT handle_name FROM tiktok_accounts WHERE linked_discord_id = $1 LIMIT 1",
+            interaction.user.id
+        )
+
+    if existing_handle:
+        # User already has a linked handle, use it directly
+        tiktok_username = existing_handle
+        await _complete_submission(bot, interaction, submission_data, tiktok_username)
+    else:
+        # No linked handle found, ask the user to provide one
+        modal = TikTokHandleModal(bot, submission_data)
+        await interaction.response.send_modal(modal)
+
+async def _complete_submission(bot, interaction: discord.Interaction, submission_data, tiktok_username: str):
+    """Complete the submission with the provided TikTok username."""
+    # Ensure the interaction is acknowledged before proceeding
     if not interaction.response.is_done():
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
-    artist = submission_data['artist_name']
-    song = submission_data['song_name']
-    user_id = interaction.user.id
-    is_skip = submission_data.get('is_skip', False)
-
-    # Determine queue line based on whether it's a skip
-    queue_line = QueueLine.PENDING_SKIPS.value if is_skip else QueueLine.FREE.value
+        await interaction.response.defer(ephemeral=True)
 
     try:
-        is_duplicate = await bot.db.check_duplicate_submission(artist, song)
-        if is_duplicate:
-            await interaction.followup.send(f"❌ This track (**{artist} - {song}**) is already in an active queue.", ephemeral=True)
-            return
-
-        if queue_line == QueueLine.FREE.value and not await bot.db.is_free_line_open():
-             await interaction.followup.send("❌ Submissions to the Free line are currently closed.", ephemeral=True)
-             return
-
-        public_id = await bot.db.add_submission(
-            user_id=user_id, username=interaction.user.display_name,
-            artist_name=artist, song_name=song,
+        public_id = await bot.database.add_submission(
+            user_id=interaction.user.id,
+            username=interaction.user.display_name,
+            artist_name=submission_data['artist_name'],
+            song_name=submission_data['song_name'],
             link_or_file=submission_data['link_or_file'],
-            queue_line=queue_line, note=submission_data.get('note'),
-            tiktok_username=submission_data.get('tiktok_username')
+            queue_line=submission_data['queue_line'],
+            note=submission_data.get('note'),
+            tiktok_username=tiktok_username
         )
-        # FIXED BY JULES
-        await bot.dispatch_queue_update()
 
-        embed = discord.Embed(title="✅ Submission Added!", description=f"Your music has been added to the **{queue_line}** line.", color=discord.Color.green())
-        embed.add_field(name="Artist", value=artist, inline=True)
-        embed.add_field(name="Song", value=song, inline=True)
-        embed.add_field(name="Submission ID", value=f"#{public_id}", inline=False)
-        if submission_data.get('tiktok_username'):
-            embed.add_field(name="TikTok Handle Saved", value=f"`{submission_data.get('tiktok_username')}`", inline=True)
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        # Add points to the user for submitting
+        await bot.database.add_points_to_user(interaction.user.id, 10)
 
-        link_value = submission_data.get('link_or_file', '')
-        if any(domain in link_value.lower() for domain in CLOUD_STORAGE_DOMAINS):
-            await interaction.followup.send(embed=discord.Embed(title="🔗 Link Sharing Reminder", description="Please ensure your file is publicly accessible so the host can play it.", color=discord.Color.orange()), ephemeral=True)
+        # Sync submission scores for the Free queue
+        await bot.database.sync_submission_scores()
+
+        # Dispatch the queue update event
+        bot.dispatch('queue_update')
+
+        embed = discord.Embed(
+            title="✅ Submission Added",
+            description=f"**{submission_data['artist_name']} - {submission_data['song_name']}**\n"
+                        f"Queue: **{submission_data['queue_line']}**\n"
+                        f"Submission ID: `{public_id}`",
+            color=discord.Color.green()
+        )
+
+        if submission_data.get('note'):
+            embed.add_field(name="Note", value=submission_data['note'], inline=False)
+
+        embed.add_field(name="TikTok Handle", value=f"@{tiktok_username}", inline=True)
+        embed.add_field(name="Points Earned", value="+10 points", inline=True)
+
+        await interaction.followup.send(embed=embed)
 
     except Exception as e:
-        logging.error(f"Error in _finalize_submission: {e}", exc_info=True)
-        await interaction.followup.send("❌ An unexpected error occurred while processing your submission.", ephemeral=True)
+        logging.error(f"Error adding submission: {e}", exc_info=True)
+        error_embed = discord.Embed(
+            title="❌ Submission Failed",
+            description=f"An error occurred while adding your submission: {str(e)}",
+            color=discord.Color.red()
+        )
+
+        await interaction.followup.send(embed=error_embed, ephemeral=True)
 
 
 class SubmissionModal(discord.ui.Modal, title='Submit Music for Review'):
