@@ -480,44 +480,64 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         await self._handle_interaction(event, 'follow', INTERACTION_POINTS['follow'])
 
     async def on_gift(self, event: GiftEvent):
-        if event.gift.streakable and event.streaking: return
+        # Safe check for streakable attribute (may not exist on all gift types)
+        try:
+            is_streakable = hasattr(event.gift, 'streakable') and getattr(event.gift, 'streakable', False)
+            is_streaking = hasattr(event, 'streaking') and getattr(event, 'streaking', False)
+            
+            # Skip if this is a streakable gift and the streak is still ongoing
+            if is_streakable and is_streaking:
+                return
+        except AttributeError as e:
+            logging.warning(f"Gift streakable check failed (gift: {event.gift.name if hasattr(event.gift, 'name') else 'unknown'}): {e}")
 
         # Award points for all gifts
         # Updated point logic: 2 points per coin for gifts under 1000, otherwise 1 point per coin
-        if event.gift.diamond_count < 1000:
-            points = event.gift.diamond_count * 2
-        else:
-            points = event.gift.diamond_count
+        try:
+            diamond_count = getattr(event.gift, 'diamond_count', 0)
+            gift_name = getattr(event.gift, 'name', 'Unknown Gift')
+            
+            if diamond_count < 1000:
+                points = diamond_count * 2
+            else:
+                points = diamond_count
 
-        await self._handle_interaction(event, 'gift', points, value=event.gift.name, coin_value=event.gift.diamond_count)
+            await self._handle_interaction(event, 'gift', points, value=gift_name, coin_value=diamond_count)
+        except Exception as e:
+            logging.error(f"Error processing gift points: {e}", exc_info=True)
+            return
 
         # Tiered skip logic
         target_line_name: Optional[str] = None
-        for coins, line_name in sorted(GIFT_TIER_MAP.items(), key=lambda item: item[0], reverse=True):
-            if event.gift.diamond_count >= coins:
-                target_line_name = line_name
-                break
+        try:
+            diamond_count = getattr(event.gift, 'diamond_count', 0)
+            for coins, line_name in sorted(GIFT_TIER_MAP.items(), key=lambda item: item[0], reverse=True):
+                if diamond_count >= coins:
+                    target_line_name = line_name
+                    break
 
-        if target_line_name:
-            try:
-                discord_id = await self.bot.db.get_discord_id_from_handle(event.user.unique_id)
-                if not discord_id: return
+            if target_line_name:
+                try:
+                    discord_id = await self.bot.db.get_discord_id_from_handle(event.user.unique_id)
+                    if not discord_id: return
 
-                submission = await self.bot.db.find_gift_rewardable_submission(discord_id)
-                if not submission: return
+                    submission = await self.bot.db.find_gift_rewardable_submission(discord_id)
+                    if not submission: return
 
-                original_line = await self.bot.db.move_submission(submission['public_id'], target_line_name)
-                if original_line and original_line != target_line_name:
-                    await self.bot.dispatch_queue_update() # FIXED BY JULES
-                    logging.info(f"TIKTOK: Rewarded user {discord_id} with move to {target_line_name} for a {event.gift.diamond_count}-coin gift.")
-                    user = self.bot.get_user(discord_id)
-                    if user:
-                        try:
-                            await user.send(f"🎉 Thank you for the {event.gift.diamond_count}-coin gift! Your submission **{submission['artist_name']} - {submission['song_name']}** has been moved to the **{target_line_name}** queue as a reward.")
-                        except discord.Forbidden:
-                            pass # Can't send DMs, oh well
-            except Exception as e:
-                logging.error(f"Error processing tiered gift reward: {e}", exc_info=True)
+                    original_line = await self.bot.db.move_submission(submission['public_id'], target_line_name)
+                    if original_line and original_line != target_line_name:
+                        await self.bot.dispatch_queue_update() # FIXED BY JULES
+                        logging.info(f"TIKTOK: Rewarded user {discord_id} with move to {target_line_name} for a {diamond_count}-coin gift.")
+                        user = self.bot.get_user(discord_id)
+                        if user:
+                            try:
+                                await user.send(f"🎉 Thank you for the {diamond_count}-coin gift! Your submission **{submission['artist_name']} - {submission['song_name']}** has been moved to the **{target_line_name}** queue as a reward.")
+                            except discord.Forbidden:
+                                pass # Can't send DMs, oh well
+                except Exception as e:
+                    logging.error(f"Error processing tiered gift reward: {e}", exc_info=True)
+        except Exception as e:
+            logging.error(f"Error in tiered skip logic: {e}", exc_info=True)
 
     # --- Background Tasks ---
     # FIXED BY Replit: Points tracking with periodic sync - verified working

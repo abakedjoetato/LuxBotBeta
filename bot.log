@@ -678,3 +678,19 @@ discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
 2025-10-09 18:05:30,161:INFO:root: ✅ Re-registered ReviewerCog views
 2025-10-09 18:05:30,161:INFO:root: ✅ Re-registered SubmissionCog views
 2025-10-09 18:05:30,162:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).
+2025-10-09 18:50:36,627:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 18:50:36,633:INFO:discord.client: logging in using static token
+2025-10-09 18:50:37,405:INFO:root: Database pool created.
+2025-10-09 18:50:37,601:INFO:root: Database initialized successfully.
+2025-10-09 18:50:41,644:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 18:50:41,680:INFO:root: SelfHealingCog loaded.
+2025-10-09 18:50:41,681:INFO:root: EmbedRefreshCog loaded. Starting auto-refresh loop...
+2025-10-09 18:50:42,435:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: f1a527c026fcef0e2af01cab8f7f1a2b).
+2025-10-09 18:50:44,452:INFO:root: ✅ Auto-refresh loop ready to start.
+2025-10-09 18:50:44,462:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-09 18:50:44,483:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-09 18:50:44,505:INFO:root: Points backup completed: 1 users, 0 TikTok handles
+2025-10-09 18:50:47,494:INFO:root: ✅ Re-registered LiveQueueCog views
+2025-10-09 18:50:47,495:INFO:root: ✅ Re-registered ReviewerCog views
+2025-10-09 18:50:47,496:INFO:root: ✅ Re-registered SubmissionCog views
+2025-10-09 18:50:47,496:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).
