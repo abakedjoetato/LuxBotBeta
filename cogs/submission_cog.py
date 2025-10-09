@@ -235,6 +235,7 @@ class SubmissionButtonView(discord.ui.View):
 
     @discord.ui.button(label='Submit File Instructions', style=discord.ButtonStyle.secondary, emoji='📁', custom_id='submit_file_button')
     async def submit_file_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
         description = (
             "Type `/` then `submitfile` in the chat and hit enter.\n"
             "Attach your audio file `.mp3`, `.m4a`, etc. (No `.wav` files).\n"
@@ -244,7 +245,7 @@ class SubmissionButtonView(discord.ui.View):
             "If you haven't linked your TikTok handle please do so, you won't be eligible for interaction-based track boosting if you don't link your TikTok @handle(s) to your Discord account."
         )
         embed = discord.Embed(title="📁 How to Submit an Audio File", description=description, color=discord.Color.blue())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @discord.ui.button(label='Submit from History', style=discord.ButtonStyle.success, emoji='📜', custom_id='submit_history_button')
     async def submit_from_history_button(self, interaction: discord.Interaction, button: discord.ui.Button):

@@ -137,33 +137,35 @@ class AdminCog(commands.Cog):
     @app_commands.choices(target_line=[app_commands.Choice(name=ql.value, value=ql.value) for ql in QueueLine if ql != QueueLine.SONGS_PLAYED])
     @is_admin()
     async def move_submission(self, interaction: discord.Interaction, submission_id: str, target_line: str):
+        await interaction.response.defer(ephemeral=True)
         public_id = submission_id.strip('#')
         try:
             original_line = await self.bot.db.move_submission(public_id, target_line)
             if original_line:
                 await self.bot.dispatch_queue_update() # FIXED BY JULES
                 embed = discord.Embed(title="✅ Submission Moved", description=f"Submission `#{public_id}` has been moved to **{target_line}** line.", color=discord.Color.green())
-                await interaction.response.send_message(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True)
             else:
-                await interaction.response.send_message(f"❌ Submission `#{public_id}` not found.", ephemeral=True)
+                await interaction.followup.send(f"❌ Submission `#{public_id}` not found.", ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"❌ Error moving submission: {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"❌ Error moving submission: {str(e)}", ephemeral=True)
     
     @app_commands.command(name="remove", description="Remove a submission from the queue")
     @app_commands.describe(submission_id="The ID of the submission to remove (e.g., #123456)")
     @is_admin()
     async def remove_submission(self, interaction: discord.Interaction, submission_id: str):
+        await interaction.response.defer(ephemeral=True)
         public_id = submission_id.strip('#')
         try:
             original_line = await self.bot.db.remove_submission_from_queue(public_id)
             if original_line:
                 await self.bot.dispatch_queue_update() # FIXED BY JULES
                 embed = discord.Embed(title="✅ Submission Removed", description=f"Submission `#{public_id}` has been removed from the queue.", color=discord.Color.green())
-                await interaction.response.send_message(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True)
             else:
-                await interaction.response.send_message(f"❌ Submission `#{public_id}` not found.", ephemeral=True)
+                await interaction.followup.send(f"❌ Submission `#{public_id}` not found.", ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"❌ Error removing submission: {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"❌ Error removing submission: {str(e)}", ephemeral=True)
 
     # FIXED BY JULES
     @app_commands.command(name="set-submission-channel", description="[ADMIN] Set a channel where only the bot and admins can talk.")
@@ -186,10 +188,11 @@ class AdminCog(commands.Cog):
     @app_commands.command(name="next", description="Get the next submission to review")
     @is_admin()
     async def next_submission(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         try:
             next_sub = await self.bot.db.take_next_to_songs_played()
             if not next_sub:
-                await interaction.response.send_message(embed=discord.Embed(title="📭 Queue Empty", description="No submissions are currently in the queue.", color=discord.Color.blue()), ephemeral=True)
+                await interaction.followup.send(embed=discord.Embed(title="📭 Queue Empty", description="No submissions are currently in the queue.", color=discord.Color.blue()), ephemeral=True)
                 return
 
             await self.bot.dispatch_queue_update() # FIXED BY JULES
@@ -222,11 +225,11 @@ class AdminCog(commands.Cog):
             embed.set_footer(text=f"Submitted on {next_sub['submission_time']} | {point_reset_message}")
             
             view = NextActionView(self.bot, next_sub['public_id'])
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
             
         except Exception as e:
             logging.error(f"Error in /next command: {e}", exc_info=True)
-            await interaction.response.send_message(f"❌ Error getting next submission: {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"❌ Error getting next submission: {str(e)}", ephemeral=True)
     
     @app_commands.command(name="opensubmissions", description="Open submissions for the Free line")
     @is_admin()
@@ -243,31 +246,35 @@ class AdminCog(commands.Cog):
     @app_commands.command(name="clearfree", description="Clear all submissions from the Free line")
     @is_admin()
     async def clear_free_line(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         cleared_count = await self.bot.db.clear_free_line()
         if cleared_count > 0:
             await self.bot.dispatch_queue_update() # FIXED BY JULES
         embed = discord.Embed(title="🗑️ Free Line Cleared", description=f"Removed {cleared_count} submissions.", color=discord.Color.orange())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
     
     @app_commands.command(name="setbookmarkchannel", description="Set the channel for bookmarked submissions")
     @is_admin()
     async def set_bookmark_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await interaction.response.defer(ephemeral=True)
         await self.bot.db.set_bot_config('bookmark_channel_id', channel_id=channel.id)
         self.bot.settings_cache['bookmark_channel_id'] = channel.id
         embed = discord.Embed(title="✅ Bookmark Channel Set", description=f"Bookmark channel set to {channel.mention}.", color=discord.Color.green())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="setnowplayingchannel", description="Set the channel for 'Now Playing' announcements")
     @is_admin()
     async def set_now_playing_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await interaction.response.defer(ephemeral=True)
         await self.bot.db.set_bot_config('now_playing_channel_id', channel_id=channel.id)
         self.bot.settings_cache['now_playing_channel_id'] = channel.id
         embed = discord.Embed(title="✅ 'Now Playing' Channel Set", description=f"Announcements will be sent to {channel.mention}", color=discord.Color.green())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="setup-post-live-metrics", description="Set the channel for post-live session metrics")
     @is_admin()
     async def setup_post_live_metrics(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await interaction.response.defer(ephemeral=True)
         await self.bot.db.set_bot_config('post_live_metrics_channel_id', channel_id=channel.id)
         self.bot.settings_cache['post_live_metrics_channel_id'] = channel.id
         embed = discord.Embed(
@@ -275,7 +282,7 @@ class AdminCog(commands.Cog):
             description=f"Post-live session metrics will be sent to {channel.mention}\n\nThis channel will display detailed user interaction statistics after each TikTok LIVE session.", 
             color=discord.Color.green()
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))
