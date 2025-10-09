@@ -99,6 +99,13 @@ Preferred communication style: Simple, everyday language.
 - **Architect Review**: Passed - all interaction handling verified, no race conditions
 - Created comprehensive INTERACTION_RESPONSE_FIX.md documentation
 
+### Temporary Change - TikTok Handle Linking (October 09, 2025)
+- **TEMPORARY**: /link-tiktok command now accepts ANY TikTok handle, even if not seen on stream
+- **Implementation**: Modified `database.link_tiktok_account()` to auto-create handles that don't exist in database
+- **Location**: Lines 419-431 in database.py - handle existence check commented out
+- **Effect**: Users can link any TikTok handle without waiting for it to appear on stream first
+- **Note**: This is a temporary bypass - validation can be re-enabled by uncommenting lines 419-421
+
 ## System Architecture
 
 ### UI/UX Decisions

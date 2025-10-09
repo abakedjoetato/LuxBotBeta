@@ -406,13 +406,27 @@ class Database:
             await conn.execute(query, session_id, tiktok_account_id, interaction_type, value, coin_value)
 
     # FIXED BY Replit: TikTok handle validation and duplicate prevention - verified working
+    # TEMPORARY: Handle existence check bypassed - accepts any handle
     async def link_tiktok_account(self, discord_id: int, tiktok_handle: str) -> Tuple[bool, str]:
         """Links a TikTok handle to a Discord ID. Returns a success boolean and a message."""
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 account = await conn.fetchrow("SELECT handle_id, linked_discord_id FROM tiktok_accounts WHERE handle_name = $1", tiktok_handle)
+                
+                # TEMPORARY: Commented out requirement for handle to exist in database
+                # if not account:
+                #     return False, "This TikTok handle has not been seen on stream yet."
+                
+                # If handle doesn't exist, create it
                 if not account:
-                    return False, "This TikTok handle has not been seen on stream yet."
+                    handle_id = await conn.fetchval(
+                        "INSERT INTO tiktok_accounts (handle_name, last_seen) VALUES ($1, NOW()) RETURNING handle_id",
+                        tiktok_handle
+                    )
+                    # Now link it to the user
+                    await conn.execute("UPDATE tiktok_accounts SET linked_discord_id = $1 WHERE handle_id = $2", discord_id, handle_id)
+                    return True, f"Successfully linked your Discord account to the TikTok handle `{tiktok_handle}`."
+                
                 if account['linked_discord_id'] and account['linked_discord_id'] != discord_id:
                     return False, "This TikTok handle is already linked to another Discord user."
                 if account['linked_discord_id'] == discord_id:
