@@ -283,6 +283,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
 
                 original_line = await self.bot.db.move_submission(submission['public_id'], target_line_name)
                 if original_line and original_line != target_line_name:
+                    await self.bot.dispatch_queue_update() # FIXED BY JULES
                     logging.info(f"TIKTOK: Rewarded user {discord_id} with move to {target_line_name} for a {event.gift.diamond_count}-coin gift.")
                     user = self.bot.get_user(discord_id)
                     if user:

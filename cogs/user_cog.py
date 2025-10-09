@@ -1,3 +1,4 @@
+# FIXED BY JULES
 """
 User Cog - Handles user-centric commands like linking accounts and managing profiles.
 """
@@ -6,7 +7,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import logging
-from typing import Optional
+from typing import Optional, List
 
 class UserCog(commands.Cog):
     """Cog for user-facing commands like linking accounts."""
@@ -14,7 +15,20 @@ class UserCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def unlinked_handle_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        """Autocomplete for unlinked TikTok handles."""
+        handles = await self.bot.db.get_unlinked_tiktok_handles(current)
+        return [app_commands.Choice(name=handle, value=handle) for handle in handles]
+
+    async def linked_handle_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        """Autocomplete for a user's own linked TikTok handles."""
+        handles = await self.bot.db.get_linked_tiktok_handles(interaction.user.id)
+        # Filter handles based on current input
+        filtered_handles = [h for h in handles if current.lower() in h.lower()]
+        return [app_commands.Choice(name=handle, value=handle) for handle in filtered_handles[:25]]
+
     @app_commands.command(name="link-tiktok", description="Link your Discord account to a TikTok handle.")
+    @app_commands.autocomplete(handle=unlinked_handle_autocomplete)
     @app_commands.describe(handle="Your TikTok handle (e.g., @username).")
     async def link_tiktok(self, interaction: discord.Interaction, handle: str):
         """Links a user's Discord account to a TikTok handle that has been seen on stream."""
@@ -27,6 +41,7 @@ class UserCog(commands.Cog):
             return
 
         try:
+            # The database function already checks if the handle exists and if it's already linked.
             success, message = await self.bot.db.link_tiktok_account(interaction.user.id, clean_handle)
             if success:
                 embed = discord.Embed(title="✅ TikTok Account Linked", description=message, color=discord.Color.green())
@@ -40,6 +55,7 @@ class UserCog(commands.Cog):
             await interaction.followup.send("An unexpected error occurred. Please try again later.", ephemeral=True)
 
     @app_commands.command(name="unlink-tiktok", description="Unlink a TikTok handle from your Discord account.")
+    @app_commands.autocomplete(handle=linked_handle_autocomplete)
     @app_commands.describe(handle="The TikTok handle to unlink.")
     async def unlink_tiktok(self, interaction: discord.Interaction, handle: str):
         """Unlinks a TikTok handle from the user's Discord account."""

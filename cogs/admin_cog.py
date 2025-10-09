@@ -141,6 +141,7 @@ class AdminCog(commands.Cog):
         try:
             original_line = await self.bot.db.move_submission(public_id, target_line)
             if original_line:
+                await self.bot.dispatch_queue_update() # FIXED BY JULES
                 embed = discord.Embed(title="✅ Submission Moved", description=f"Submission `#{public_id}` has been moved to **{target_line}** line.", color=discord.Color.green())
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             else:
@@ -156,21 +157,31 @@ class AdminCog(commands.Cog):
         try:
             original_line = await self.bot.db.remove_submission_from_queue(public_id)
             if original_line:
+                await self.bot.dispatch_queue_update() # FIXED BY JULES
                 embed = discord.Embed(title="✅ Submission Removed", description=f"Submission `#{public_id}` has been removed from the queue.", color=discord.Color.green())
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             else:
                 await interaction.response.send_message(f"❌ Submission `#{public_id}` not found.", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ Error removing submission: {str(e)}", ephemeral=True)
-    
-    @app_commands.command(name="setsubmissionchannel", description="Set the channel for submissions (auto-moderated)")
-    @app_commands.describe(channel="The text channel to use for submissions")
+
+    # FIXED BY JULES
+    @app_commands.command(name="set-submission-channel", description="[ADMIN] Set a channel where only the bot and admins can talk.")
+    @app_commands.describe(channel="The text channel to designate for moderated submissions.")
     @is_admin()
     async def set_submission_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        await self.bot.db.set_bot_config('submission_channel_id', channel_id=channel.id)
-        self.bot.settings_cache['submission_channel_id'] = channel.id
-        embed = discord.Embed(title="✅ Submission Channel Set", description=f"Submissions channel is now set to {channel.mention}", color=discord.Color.green())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        """Sets the submission channel and saves it to the database."""
+        await interaction.response.defer(ephemeral=True)
+        key = "submission_channel_id"
+        await self.bot.db.set_bot_config(key, channel_id=channel.id)
+        self.bot.settings_cache[key] = channel.id
+        embed = discord.Embed(
+            title="✅ Submission Channel Set",
+            description=f"The submission channel has been set to {channel.mention}. "
+                        "Only bot commands and admin messages will be allowed.",
+            color=discord.Color.green()
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="next", description="Get the next submission to review")
     @is_admin()
@@ -180,6 +191,8 @@ class AdminCog(commands.Cog):
             if not next_sub:
                 await interaction.response.send_message(embed=discord.Embed(title="📭 Queue Empty", description="No submissions are currently in the queue.", color=discord.Color.blue()), ephemeral=True)
                 return
+
+            await self.bot.dispatch_queue_update() # FIXED BY JULES
 
             submitter_id = next_sub.get('user_id')
             if submitter_id:
@@ -231,6 +244,8 @@ class AdminCog(commands.Cog):
     @is_admin()
     async def clear_free_line(self, interaction: discord.Interaction):
         cleared_count = await self.bot.db.clear_free_line()
+        if cleared_count > 0:
+            await self.bot.dispatch_queue_update() # FIXED BY JULES
         embed = discord.Embed(title="🗑️ Free Line Cleared", description=f"Removed {cleared_count} submissions.", color=discord.Color.orange())
         await interaction.response.send_message(embed=embed, ephemeral=True)
     

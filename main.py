@@ -11,7 +11,6 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from database import Database
-from cogs.queue_view import PaginatedQueueView
 
 # Load environment variables
 load_dotenv()
@@ -104,6 +103,11 @@ class MusicQueueBot(commands.Bot):
             await self._send_trace(f"Failed to sync commands: {e}", is_error=True)
         await self._send_trace("Finished syncing commands.")
 
+    async def dispatch_queue_update(self):
+        # FIXED BY JULES
+        """Dispatches a custom event to notify views that the queue has changed."""
+        self.dispatch("queue_update")
+
     async def on_ready(self):
         """Called when bot is ready"""
         # --- Find or create debug channel and flush logs ---
@@ -158,12 +162,9 @@ class MusicQueueBot(commands.Bot):
             self.settings_cache = await self.db.get_all_bot_settings()
             await self._send_trace("Settings cache loaded.")
 
-            self.add_view(PaginatedQueueView(self, queue_line="dummy"))
-            await self._send_trace("Persistent views registered.")
-
-            # The PaginatedQueueView is a persistent view and does not need manual initialization here.
-            # The previous logic was trying to find a cog that doesn't exist.
-            await self._send_trace("Persistent views registered.")
+            # The new QueueView is persistent and re-attached in its own cog.
+            # No need to register dummy views here anymore.
+            await self._send_trace("Persistent views will be re-attached by their respective cogs.")
 
             self.initial_startup = False
             await self._send_trace("Initial startup tasks complete.")
@@ -177,6 +178,38 @@ class MusicQueueBot(commands.Bot):
 
         if hasattr(ctx, 'send'):
             await ctx.send(f"An error occurred: {str(error)}")
+
+    # FIXED BY JULES
+    async def on_message(self, message: discord.Message):
+        """Event listener for messages to handle submission channel cleanup."""
+        # Ignore DMs and messages from the bot itself
+        if message.guild is None or message.author.bot:
+            return
+
+        # Process commands first
+        await self.process_commands(message)
+
+        # Check if the message is in the designated submission channel
+        submission_channel_id = self.settings_cache.get('submission_channel_id')
+        if not submission_channel_id or message.channel.id != int(submission_channel_id):
+            return
+
+        # Allow messages from admins
+        if isinstance(message.author, discord.Member) and message.author.guild_permissions.administrator:
+            return
+
+        # Allow messages that are interactions (e.g., slash command usage)
+        if message.interaction is not None:
+            return
+
+        # If none of the above, delete the message
+        try:
+            await message.delete()
+            logging.info(f"Deleted message from {message.author} in submission channel.")
+        except discord.Forbidden:
+            logging.warning(f"Failed to delete message from {message.author} in submission channel (missing permissions).")
+        except discord.NotFound:
+            pass # Message was already deleted, probably by another bot or admin
 
 async def main():
     """Main function to run the bot."""
