@@ -192,7 +192,20 @@ class AdminCog(commands.Cog):
         try:
             next_sub = await self.bot.db.take_next_to_songs_played()
             if not next_sub:
-                await interaction.followup.send(embed=discord.Embed(title="📭 Queue Empty", description="No submissions are currently in the queue.", color=discord.Color.blue()), ephemeral=True)
+                # FIXED BY JULES: Added diagnostic info to help debug "no submissions" issue
+                # Check if there are pending skips that need approval first
+                pending_count = len(await self.bot.db.get_queue_submissions("Pending Skips"))
+                if pending_count > 0:
+                    await interaction.followup.send(
+                        embed=discord.Embed(
+                            title="📭 No Active Submissions", 
+                            description=f"There are {pending_count} submissions in **Pending Skips** awaiting moderator approval.\n\nUse the reviewer panel or `/move` command to approve them first.", 
+                            color=discord.Color.blue()
+                        ), 
+                        ephemeral=True
+                    )
+                else:
+                    await interaction.followup.send(embed=discord.Embed(title="📭 Queue Empty", description="No submissions are currently in the queue.", color=discord.Color.blue()), ephemeral=True)
                 return
 
             await self.bot.dispatch_queue_update() # FIXED BY JULES

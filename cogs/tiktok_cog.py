@@ -290,14 +290,14 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             logging.error(f"Post-live metrics channel {metrics_channel_id} not found.")
             return
 
-        # Get per-user stats with watch time
-        user_stats = await self.bot.db.get_session_user_stats(self.current_session_id)
+        # FIXED BY JULES: Get ALL TikTok handles (linked and unlinked) sorted by engagement
+        all_handles_stats = await self.bot.db.get_session_all_handles_stats(self.current_session_id)
         
-        if not user_stats:
-            # No linked users participated, still post overall summary
+        if not all_handles_stats:
+            # No interactions at all
             embed = discord.Embed(
                 title=f"📊 Post-Live Metrics: @{self.live_host_username}",
-                description="No linked users participated in this session.",
+                description="No interactions were recorded during this session.",
                 color=discord.Color.orange()
             )
             embed.set_footer(text=f"Session ID: {self.current_session_id}")
@@ -323,39 +323,46 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             else:
                 return f"{secs}s"
 
-        # Build the enhanced metrics table
+        # FIXED BY JULES: Build enhanced metrics table with ALL handles (linked and unlinked)
+        linked_count = sum(1 for h in all_handles_stats if h['linked_discord_id'] is not None)
+        unlinked_count = sum(1 for h in all_handles_stats if h['linked_discord_id'] is None)
+        
         embed = discord.Embed(
             title=f"📊 Post-Live Metrics: @{self.live_host_username}",
-            description=f"**Session Summary**\nTotal interactions from {len(user_stats)} linked user(s)",
+            description=f"**Session Summary**\nTotal participants: {len(all_handles_stats)} ({linked_count} linked, {unlinked_count} unlinked)\nSorted by engagement (coins > interactions)",
             color=discord.Color.blurple()
         )
         
         # Add table header
         table_lines = [
             "```",
-            "Discord User     | TikTok Handle  | Watch | Likes | Cmts | Shares | Gifts | Coins",
-            "-" * 85
+            "TikTok Handle     | Linked To       | Watch | Likes | Cmts | Shares | Gifts | Coins",
+            "-" * 90
         ]
         
-        # Add user rows (limit to 15 to fit Discord embed limits)
-        for user_data in user_stats[:15]:
-            discord_id = user_data['linked_discord_id']
-            user = self.bot.get_user(discord_id)
-            discord_name = user.display_name[:15] if user else f"ID:{discord_id}"[:15]
-            tiktok_handle = user_data['tiktok_username'][:14]
-            watch_time = format_watch_time(user_data.get('watch_time_seconds', 0))
+        # Add handle rows (limit to 20 to fit Discord embed limits)
+        for handle_data in all_handles_stats[:20]:
+            tiktok_handle = handle_data['tiktok_username'][:17]
+            
+            # Show Discord username if linked, otherwise show "Unlinked"
+            linked_name = "Unlinked"
+            if handle_data['linked_discord_id']:
+                user = self.bot.get_user(handle_data['linked_discord_id'])
+                linked_name = user.display_name[:15] if user else f"ID:{handle_data['linked_discord_id']}"[:15]
+            
+            watch_time = format_watch_time(handle_data.get('watch_time_seconds', 0))
             
             row = (
-                f"{discord_name:<16} | {tiktok_handle:<14} | {watch_time:<5} | "
-                f"{int(user_data['likes']):<5} | {int(user_data['comments']):<4} | "
-                f"{int(user_data['shares']):<6} | {int(user_data.get('gifts', 0)):<5} | {int(user_data['gift_coins']):<5}"
+                f"{tiktok_handle:<17} | {linked_name:<15} | {watch_time:<5} | "
+                f"{int(handle_data['likes']):<5} | {int(handle_data['comments']):<4} | "
+                f"{int(handle_data['shares']):<6} | {int(handle_data.get('gifts', 0)):<5} | {int(handle_data['gift_coins']):<5}"
             )
             table_lines.append(row)
         
         table_lines.append("```")
         
-        if len(user_stats) > 15:
-            table_lines.append(f"\n*...and {len(user_stats) - 15} more contributor(s)*")
+        if len(all_handles_stats) > 20:
+            table_lines.append(f"\n*...and {len(all_handles_stats) - 20} more participant(s)*")
         
         embed.add_field(
             name="User Interaction Metrics",
@@ -519,9 +526,42 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             await self.bot.db.sync_submission_scores()
         except Exception as e:
             logging.error(f"Error in score_sync_task: {e}", exc_info=True)
+    
+    # FIXED BY JULES: Periodic backup task for points tracking data
+    @tasks.loop(hours=1)
+    async def points_backup_task(self):
+        """Periodically creates a backup log of points data for recovery purposes."""
+        try:
+            import json
+            from datetime import datetime
+            
+            # Get all user points
+            async with self.bot.db.pool.acquire() as conn:
+                user_points = await conn.fetch("SELECT user_id, points FROM user_points WHERE points > 0")
+                tiktok_points = await conn.fetch("SELECT handle_name, points, linked_discord_id FROM tiktok_accounts WHERE points > 0")
+            
+            backup_data = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "user_points": [{"user_id": row['user_id'], "points": row['points']} for row in user_points],
+                "tiktok_points": [{"handle": row['handle_name'], "points": row['points'], "linked_discord_id": row['linked_discord_id']} for row in tiktok_points]
+            }
+            
+            # Write to backup file (rotating, keep last 24 backups)
+            backup_file = f"points_backup_{datetime.utcnow().strftime('%Y%m%d_%H')}.json"
+            with open(backup_file, 'w') as f:
+                json.dump(backup_data, f, indent=2)
+            
+            logging.info(f"Points backup completed: {len(user_points)} users, {len(tiktok_points)} TikTok handles")
+        except Exception as e:
+            logging.error(f"Error in points_backup_task: {e}", exc_info=True)
 
     @score_sync_task.before_loop
     async def before_score_sync_task(self):
+        await self.bot.wait_until_ready()
+    
+    # FIXED BY JULES: Ensure backup task waits for bot to be ready
+    @points_backup_task.before_loop
+    async def before_points_backup_task(self):
         await self.bot.wait_until_ready()
 
 async def setup(bot):

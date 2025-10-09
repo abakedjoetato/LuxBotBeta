@@ -509,6 +509,39 @@ class Database:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, session_id)
             return [dict(row) for row in rows]
+    
+    # FIXED BY JULES: New function to get ALL TikTok handles (linked and unlinked) for post-live metrics
+    async def get_session_all_handles_stats(self, session_id: int) -> List[Dict[str, Any]]:
+        """
+        Calculates per-handle interaction stats for ALL TikTok handles (linked and unlinked),
+        sorted by total engagement points (coins descending, then interaction count descending).
+        """
+        query = """
+            SELECT
+                ta.linked_discord_id,
+                ta.handle_name as tiktok_username,
+                SUM(CASE WHEN ti.interaction_type = 'like' THEN 1 ELSE 0 END) AS likes,
+                SUM(CASE WHEN ti.interaction_type = 'comment' THEN 1 ELSE 0 END) AS comments,
+                SUM(CASE WHEN ti.interaction_type = 'share' THEN 1 ELSE 0 END) AS shares,
+                SUM(CASE WHEN ti.interaction_type = 'gift' THEN 1 ELSE 0 END) AS gifts,
+                SUM(CASE WHEN ti.interaction_type = 'gift' THEN ti.coin_value ELSE 0 END) AS gift_coins,
+                EXTRACT(EPOCH FROM (MAX(ti.timestamp) - MIN(ti.timestamp))) AS watch_time_seconds,
+                COUNT(ti.id) AS total_interactions
+            FROM
+                tiktok_interactions ti
+            JOIN
+                tiktok_accounts ta ON ti.tiktok_account_id = ta.handle_id
+            WHERE
+                ti.session_id = $1
+            GROUP BY
+                ta.linked_discord_id, ta.handle_name
+            ORDER BY
+                SUM(CASE WHEN ti.interaction_type = 'gift' THEN ti.coin_value ELSE 0 END) DESC,
+                COUNT(ti.id) DESC;
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, session_id)
+            return [dict(row) for row in rows]
 
     async def get_session_submission_counts(self, session_id: int) -> Dict[int, int]:
         """
