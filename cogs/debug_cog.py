@@ -19,10 +19,7 @@ class DebugCog(commands.Cog):
         """Sets the debug channel."""
         await interaction.response.defer(ephemeral=True)
         try:
-            await self.bot.db._execute_run(
-                "INSERT INTO bot_settings (key, value) VALUES ('debug_channel_id', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-                str(channel.id)
-            )
+            await self.bot.db.set_bot_config('debug_channel_id', channel_id=channel.id)
             self.bot.settings_cache['debug_channel_id'] = channel.id
             await interaction.followup.send(f"✅ Debug channel has been set to {channel.mention}.", ephemeral=True)
         except Exception as e:
