@@ -84,7 +84,7 @@ async def _finalize_submission(bot, interaction: discord.Interaction, submission
     """Finalize the submission process and add to database."""
 
     # First, check if the user already has a linked TikTok handle
-    async with bot.database.pool.acquire() as conn:
+    async with bot.db.pool.acquire() as conn:
         existing_handle = await conn.fetchval(
             "SELECT handle_name FROM tiktok_accounts WHERE linked_discord_id = $1 LIMIT 1",
             interaction.user.id
@@ -98,6 +98,7 @@ async def _finalize_submission(bot, interaction: discord.Interaction, submission
         # No linked handle found, ask the user to provide one
         modal = TikTokHandleModal(bot, submission_data)
         await interaction.response.send_modal(modal)
+
 
 async def _complete_submission(bot, interaction: discord.Interaction, submission_data, tiktok_username: str):
     """Complete the submission with the provided TikTok username."""
