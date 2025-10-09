@@ -89,18 +89,18 @@ async def _finalize_submission(bot, interaction: discord.Interaction, submission
     # First, check if a handle was provided directly
     if provided_handle:
         tiktok_username = provided_handle.strip().lstrip('@')
-        # Validate that this handle exists in the database
-        async with bot.db.pool.acquire() as conn:
-            handle_exists = await conn.fetchval(
-                "SELECT EXISTS(SELECT 1 FROM tiktok_accounts WHERE handle_name = $1)",
-                tiktok_username
-            )
-        if not handle_exists:
-            await interaction.followup.send(
-                f"❌ The TikTok handle `@{tiktok_username}` is not in our database. Please choose from the autocomplete suggestions (handles that have been seen on stream).",
-                ephemeral=True
-            )
-            return
+        # TEMPORARILY DISABLED: Database validation to allow any TikTok handle
+        # async with bot.db.pool.acquire() as conn:
+        #     handle_exists = await conn.fetchval(
+        #         "SELECT EXISTS(SELECT 1 FROM tiktok_accounts WHERE handle_name = $1)",
+        #         tiktok_username
+        #     )
+        # if not handle_exists:
+        #     await interaction.followup.send(
+        #         f"❌ The TikTok handle `@{tiktok_username}` is not in our database. Please choose from the autocomplete suggestions (handles that have been seen on stream).",
+        #         ephemeral=True
+        #     )
+        #     return
         await _complete_submission(bot, interaction, submission_data, tiktok_username)
         return
 

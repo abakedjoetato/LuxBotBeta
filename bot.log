@@ -1118,3 +1118,66 @@ discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
 2025-10-09 19:03:46,835:INFO:root: ✅ Re-registered ReviewerCog views
 2025-10-09 19:03:46,835:INFO:root: ✅ Re-registered SubmissionCog views
 2025-10-09 19:03:46,835:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).
+2025-10-09 19:09:50,487:ERROR:discord.ui.view: Ignoring exception in view <SubmissionButtonView timeout=None children=3> for item <Button style=<ButtonStyle.primary: 1> url=None disabled=False label='Submit Link' emoji=<PartialEmoji animated=False name='🔗' id=None> row=None sku_id=None id=None>
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/ui/view.py", line 555, in _scheduled_task
+    await item.callback(interaction)
+  File "/home/runner/workspace/cogs/submission_cog.py", line 236, in submit_link_button
+    await interaction.response.send_modal(SubmissionModal(self.bot))
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1273, in send_modal
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-10-09 19:33:49,451:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 19:33:49,452:INFO:discord.client: logging in using static token
+2025-10-09 19:33:51,256:INFO:root: Database pool created.
+2025-10-09 19:33:51,360:INFO:root: Database initialized successfully.
+2025-10-09 19:33:52,424:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 19:33:52,445:INFO:root: SelfHealingCog loaded.
+2025-10-09 19:33:52,447:INFO:root: EmbedRefreshCog loaded. Starting auto-refresh loop...
+2025-10-09 19:33:53,133:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: 54f7b10d36246da6e18f1051fb19d98b).
+2025-10-09 19:33:55,137:INFO:root: ✅ Auto-refresh loop ready to start.
+2025-10-09 19:33:55,138:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-09 19:33:55,138:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-09 19:33:55,155:INFO:root: Points backup completed: 1 users, 0 TikTok handles
+2025-10-09 19:33:58,139:INFO:root: ✅ Re-registered LiveQueueCog views
+2025-10-09 19:33:58,139:INFO:root: ✅ Re-registered ReviewerCog views
+2025-10-09 19:33:58,140:INFO:root: ✅ Re-registered SubmissionCog views
+2025-10-09 19:33:58,140:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).
+2025-10-09 19:34:09,446:ERROR:discord.app_commands.tree: Ignoring exception in autocomplete for 'submitfile'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1289, in _call
+    await command._invoke_autocomplete(interaction, focused, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 928, in _invoke_autocomplete
+    await interaction.response.autocomplete(choices)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1332, in autocomplete
+    await adapter.create_interaction_response(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09 19:34:13,486:ERROR:discord.app_commands.tree: Ignoring exception in autocomplete for 'submitfile'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1289, in _call
+    await command._invoke_autocomplete(interaction, focused, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 928, in _invoke_autocomplete
+    await interaction.response.autocomplete(choices)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1332, in autocomplete
+    await adapter.create_interaction_response(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09 19:34:17,781:ERROR:discord.app_commands.tree: Ignoring exception in autocomplete for 'submitfile'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1289, in _call
+    await command._invoke_autocomplete(interaction, focused, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 928, in _invoke_autocomplete
+    await interaction.response.autocomplete(choices)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1332, in autocomplete
+    await adapter.create_interaction_response(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09 19:34:31,098:INFO:root: LiveQueueCog received queue_update event. Refreshing display.
+2025-10-09 19:34:31,098:INFO:root: ReviewerCog received queue_update event. Refreshing displays.
