@@ -19,9 +19,17 @@ class SelfHealingCog(commands.Cog):
         self.healing_in_progress = False
         
     async def cog_load(self):
-        """On cog load, perform auto-healing."""
-        logging.info("SelfHealingCog loaded. Starting auto-healing sequence...")
-        await self.auto_heal_on_startup()
+        """On cog load, register the cog."""
+        logging.info("SelfHealingCog loaded.")
+    
+    @commands.Cog.listener('on_ready')
+    async def on_ready_heal(self):
+        """Perform auto-healing after settings are loaded."""
+        # Only run once (on initial startup)
+        if not hasattr(self, '_auto_heal_ran'):
+            self._auto_heal_ran = True
+            logging.info("SelfHealingCog ready. Starting auto-healing sequence...")
+            await self.auto_heal_on_startup()
     
     def get_persistent_channel_configs(self) -> List[Dict]:
         """Get all persistent channel configurations from settings."""
@@ -152,7 +160,8 @@ class SelfHealingCog(commands.Cog):
         Clean up excess messages in a persistent channel.
         Keeps: Official persistent view messages and admin/mod messages.
         """
-        official_message_ids = [mid for mid in config.get('message_ids', []) if mid]
+        # Convert message IDs to int for proper comparison
+        official_message_ids = [int(mid) for mid in config.get('message_ids', []) if mid]
         allow_admin = config.get('allow_admin', True)
         
         messages_to_delete = []
@@ -250,7 +259,7 @@ class SelfHealingCog(commands.Cog):
             except discord.NotFound:
                 logging.error(f"❌ Persistent view message {message_id} not found, needs recreation")
                 # Clear invalid message ID from settings
-                await self.bot.db.set_bot_config(message_key, message_id=None)
+                await self.bot.db.set_bot_config(message_key, value=None, channel_id=None, message_id=None)
                 self.bot.settings_cache[message_key] = None
             except Exception as e:
                 logging.error(f"❌ Error verifying message {message_id}: {e}")
