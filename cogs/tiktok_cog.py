@@ -89,12 +89,14 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
     )
     async def connect(self, interaction: discord.Interaction, unique_id: str, persistent: bool = True):
         """Connects the bot to a specified TikTok Live stream with optional persistent retry."""
+        await interaction.response.defer(ephemeral=True)
+        
         if self.is_connected:
-            await interaction.response.send_message("Already connected to a TikTok LIVE. Please disconnect first.", ephemeral=True)
+            await interaction.followup.send("Already connected to a TikTok LIVE. Please disconnect first.", ephemeral=True)
             return
 
         if self._connection_task and not self._connection_task.done():
-            await interaction.response.send_message("A connection attempt is already in progress. Use `/tiktok status` to check progress or `/tiktok disconnect` to cancel.", ephemeral=True)
+            await interaction.followup.send("A connection attempt is already in progress. Use `/tiktok status` to check progress or `/tiktok disconnect` to cancel.", ephemeral=True)
             return
 
         self._retry_enabled = persistent
@@ -102,7 +104,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         self._connection_start_time = time.time()
         
         embed = self._create_status_embed("⏳ Connecting...", "Status: Initializing connection...", discord.Color.light_grey())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.edit_original_response(embed=embed)
         self._connection_task = asyncio.create_task(self._background_connect(interaction, unique_id))
 
     async def _background_connect(self, interaction: discord.Interaction, unique_id: str):
@@ -189,6 +191,8 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
     @app_commands.command(name="status", description="Check the current TikTok connection status.")
     async def status(self, interaction: discord.Interaction):
         """Display the current TikTok connection status with detailed information."""
+        await interaction.response.defer(ephemeral=True)
+        
         if self.is_connected and self.bot.tiktok_client:
             elapsed = int(time.time() - self._connection_start_time) if self._connection_start_time else 0
             hours, remainder = divmod(elapsed, 3600)
@@ -226,26 +230,28 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             embed.set_footer(text="Use /tiktok connect to start a connection")
         
         embed.timestamp = discord.utils.utcnow()
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="disconnect", description="Disconnect from the TikTok LIVE stream.")
     async def disconnect(self, interaction: discord.Interaction):
         """Signals the TikTok client to disconnect or cancel connection attempt."""
+        await interaction.response.defer(ephemeral=True)
+        
         # Check if there's an active connection
         if self.is_connected and self.bot.tiktok_client:
             self._user_initiated_disconnect = True
-            await interaction.response.send_message("🔌 Disconnecting from TikTok LIVE... Session summary will be posted shortly.", ephemeral=True)
+            await interaction.followup.send("🔌 Disconnecting from TikTok LIVE... Session summary will be posted shortly.", ephemeral=True)
             await self.bot.tiktok_client.disconnect()
             return
         
         # Check if there's a connection attempt in progress
         if self._connection_task and not self._connection_task.done():
             self._connection_task.cancel()
-            await interaction.response.send_message("🛑 Connection attempt cancelled successfully.", ephemeral=True)
+            await interaction.followup.send("🛑 Connection attempt cancelled successfully.", ephemeral=True)
             return
         
         # Not connected or attempting to connect
-        await interaction.response.send_message("Not currently connected or attempting to connect to any stream.", ephemeral=True)
+        await interaction.followup.send("Not currently connected or attempting to connect to any stream.", ephemeral=True)
 
     def _reset_state(self):
         """Resets all internal state variables for the connection."""

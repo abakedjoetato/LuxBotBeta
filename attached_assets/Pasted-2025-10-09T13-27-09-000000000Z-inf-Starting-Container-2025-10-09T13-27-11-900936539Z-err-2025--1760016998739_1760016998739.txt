@@ -1,0 +1,190 @@
+2025-10-09T13:27:09.000000000Z [inf]  Starting Container
+2025-10-09T13:27:11.900936539Z [err]  2025-10-09 13:27:10,943:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09T13:27:11.900943056Z [err]  2025-10-09 13:27:10,943:INFO:discord.client: logging in using static token
+2025-10-09T13:27:11.900947131Z [err]  2025-10-09 13:27:11,551:INFO:root: Database pool created.
+2025-10-09T13:27:11.900951290Z [err]  2025-10-09 13:27:11,572:INFO:root: Database initialized successfully.
+2025-10-09T13:27:12.769554466Z [err]  2025-10-09 13:27:12,766:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09T13:27:13.550325227Z [err]  2025-10-09 13:27:13,522:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: be0830b160b83c324767d2bfb88a3371).
+2025-10-09T13:31:04.942431799Z [err]  2025-10-09 13:31:04,672:ERROR:discord.app_commands.tree: Ignoring exception in command 'connect'
+2025-10-09T13:31:04.942436090Z [err]  Traceback (most recent call last):
+2025-10-09T13:31:04.942440547Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 858, in _do_call
+2025-10-09T13:31:04.942444941Z [err]      return await self._callback(self.binding, interaction, **params)  # type: ignore
+2025-10-09T13:31:04.942450528Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:31:04.942455019Z [err]    File "/app/cogs/tiktok_cog.py", line 105, in connect
+2025-10-09T13:31:04.942459838Z [err]      await interaction.response.send_message(embed=embed, ephemeral=True)
+2025-10-09T13:31:04.942464569Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/interactions.py", line 1051, in send_message
+2025-10-09T13:31:04.942469701Z [err]      response = await adapter.create_interaction_response(
+2025-10-09T13:31:04.942474267Z [err]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:31:04.942478846Z [err]      ...<6 lines>...
+2025-10-09T13:31:04.942483325Z [err]      )
+2025-10-09T13:31:04.942488237Z [err]      ^
+2025-10-09T13:31:04.942492608Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/webhook/async_.py", line 226, in request
+2025-10-09T13:31:04.942496856Z [err]      raise HTTPException(response, data)
+2025-10-09T13:31:04.942501352Z [err]  discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-10-09T13:31:04.942506387Z [err]  
+2025-10-09T13:31:04.942511736Z [err]  The above exception was the direct cause of the following exception:
+2025-10-09T13:31:04.942516340Z [err]  
+2025-10-09T13:31:04.942520988Z [err]  Traceback (most recent call last):
+2025-10-09T13:31:04.942525844Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/tree.py", line 1297, in _call
+2025-10-09T13:31:04.942531459Z [err]      await command._invoke_with_namespace(interaction, namespace)
+2025-10-09T13:31:04.942535687Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 884, in _invoke_with_namespace
+2025-10-09T13:31:04.942539845Z [err]      return await self._do_call(interaction, transformed_values)
+2025-10-09T13:31:04.942544692Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:31:04.942548978Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 877, in _do_call
+2025-10-09T13:31:04.942553055Z [err]      raise CommandInvokeError(self, e) from e
+2025-10-09T13:31:04.942557060Z [err]  discord.app_commands.errors.CommandInvokeError: Command 'connect' raised an exception: HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-10-09T13:31:24.913437034Z [err]  2025-10-09 13:31:15,794:ERROR:discord.app_commands.tree: Ignoring exception in command 'status'
+2025-10-09T13:31:24.913447439Z [err]  Traceback (most recent call last):
+2025-10-09T13:31:24.913452611Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 858, in _do_call
+2025-10-09T13:31:24.913457273Z [err]      return await self._callback(self.binding, interaction, **params)  # type: ignore
+2025-10-09T13:31:24.913462263Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:31:24.913467106Z [err]    File "/app/cogs/tiktok_cog.py", line 229, in status
+2025-10-09T13:31:24.913471450Z [err]      await interaction.response.send_message(embed=embed, ephemeral=True)
+2025-10-09T13:31:24.913475941Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/interactions.py", line 1051, in send_message
+2025-10-09T13:31:24.913480058Z [err]      response = await adapter.create_interaction_response(
+2025-10-09T13:31:24.913484550Z [err]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:31:24.913488582Z [err]      ...<6 lines>...
+2025-10-09T13:31:24.913494450Z [err]      )
+2025-10-09T13:31:24.913498772Z [err]      ^
+2025-10-09T13:31:24.913503551Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/webhook/async_.py", line 224, in request
+2025-10-09T13:31:24.913508078Z [err]      raise NotFound(response, data)
+2025-10-09T13:31:24.913512369Z [err]  discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09T13:31:24.913517092Z [err]  
+2025-10-09T13:31:24.913523867Z [err]  The above exception was the direct cause of the following exception:
+2025-10-09T13:31:24.913529652Z [err]  
+2025-10-09T13:31:24.913535467Z [err]  Traceback (most recent call last):
+2025-10-09T13:31:24.913541086Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/tree.py", line 1297, in _call
+2025-10-09T13:31:24.913545263Z [err]      await command._invoke_with_namespace(interaction, namespace)
+2025-10-09T13:31:24.913549435Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 884, in _invoke_with_namespace
+2025-10-09T13:31:24.913553426Z [err]      return await self._do_call(interaction, transformed_values)
+2025-10-09T13:31:24.913558668Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:31:24.913700903Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 877, in _do_call
+2025-10-09T13:31:24.913707422Z [err]      raise CommandInvokeError(self, e) from e
+2025-10-09T13:31:24.913713791Z [err]  discord.app_commands.errors.CommandInvokeError: Command 'status' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09T13:31:54.996757690Z [err]  2025-10-09 13:31:52,143:ERROR:discord.app_commands.tree: Ignoring exception in command 'disconnect'
+2025-10-09T13:31:54.996763540Z [err]  Traceback (most recent call last):
+2025-10-09T13:31:54.996769758Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 858, in _do_call
+2025-10-09T13:31:54.996776095Z [err]      return await self._callback(self.binding, interaction, **params)  # type: ignore
+2025-10-09T13:31:54.996781816Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:31:54.996788688Z [err]    File "/app/cogs/tiktok_cog.py", line 248, in disconnect
+2025-10-09T13:31:54.996794354Z [err]      await interaction.response.send_message("Not currently connected or attempting to connect to any stream.", ephemeral=True)
+2025-10-09T13:31:54.996800373Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/interactions.py", line 1051, in send_message
+2025-10-09T13:31:54.996805417Z [err]      response = await adapter.create_interaction_response(
+2025-10-09T13:31:54.996811109Z [err]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:31:54.996816798Z [err]      ...<6 lines>...
+2025-10-09T13:31:54.996822542Z [err]      )
+2025-10-09T13:31:54.996828468Z [err]      ^
+2025-10-09T13:31:54.996834101Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/webhook/async_.py", line 224, in request
+2025-10-09T13:31:54.996840560Z [err]      raise NotFound(response, data)
+2025-10-09T13:31:54.996846185Z [err]  discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09T13:31:54.996851667Z [err]  
+2025-10-09T13:31:54.997327179Z [err]  The above exception was the direct cause of the following exception:
+2025-10-09T13:31:54.997334693Z [err]  
+2025-10-09T13:31:54.997341050Z [err]  Traceback (most recent call last):
+2025-10-09T13:31:54.997348397Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/tree.py", line 1297, in _call
+2025-10-09T13:31:54.997389966Z [err]      await command._invoke_with_namespace(interaction, namespace)
+2025-10-09T13:31:54.997396293Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 884, in _invoke_with_namespace
+2025-10-09T13:31:54.997401564Z [err]      return await self._do_call(interaction, transformed_values)
+2025-10-09T13:31:54.997407802Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:31:54.997415026Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 877, in _do_call
+2025-10-09T13:31:54.997422712Z [err]      raise CommandInvokeError(self, e) from e
+2025-10-09T13:31:54.997428742Z [err]  discord.app_commands.errors.CommandInvokeError: Command 'disconnect' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09T13:32:01.992730792Z [err]  2025-10-09 13:32:01,866:ERROR:discord.app_commands.tree: Ignoring exception in command 'status'
+2025-10-09T13:32:01.992740220Z [err]  Traceback (most recent call last):
+2025-10-09T13:32:01.992746989Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 858, in _do_call
+2025-10-09T13:32:01.992753515Z [err]      return await self._callback(self.binding, interaction, **params)  # type: ignore
+2025-10-09T13:32:01.992760629Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:32:01.992766804Z [err]    File "/app/cogs/tiktok_cog.py", line 229, in status
+2025-10-09T13:32:01.992771633Z [err]      await interaction.response.send_message(embed=embed, ephemeral=True)
+2025-10-09T13:32:01.992778523Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/interactions.py", line 1051, in send_message
+2025-10-09T13:32:01.992784369Z [err]      response = await adapter.create_interaction_response(
+2025-10-09T13:32:01.992790772Z [err]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:32:01.992796617Z [err]      ...<6 lines>...
+2025-10-09T13:32:01.992803181Z [err]      )
+2025-10-09T13:32:01.992811090Z [err]      ^
+2025-10-09T13:32:01.992816801Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/webhook/async_.py", line 224, in request
+2025-10-09T13:32:01.992821251Z [err]      raise NotFound(response, data)
+2025-10-09T13:32:01.992825602Z [err]  discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09T13:32:01.992830375Z [err]  
+2025-10-09T13:32:01.992834871Z [err]  The above exception was the direct cause of the following exception:
+2025-10-09T13:32:01.992839204Z [err]  
+2025-10-09T13:32:01.992843483Z [err]  Traceback (most recent call last):
+2025-10-09T13:32:01.992847741Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/tree.py", line 1297, in _call
+2025-10-09T13:32:01.992852008Z [err]      await command._invoke_with_namespace(interaction, namespace)
+2025-10-09T13:32:01.992856234Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 884, in _invoke_with_namespace
+2025-10-09T13:32:01.992860534Z [err]      return await self._do_call(interaction, transformed_values)
+2025-10-09T13:32:01.992864389Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:32:01.992868547Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 877, in _do_call
+2025-10-09T13:32:01.992872655Z [err]      raise CommandInvokeError(self, e) from e
+2025-10-09T13:32:01.992876780Z [err]  discord.app_commands.errors.CommandInvokeError: Command 'status' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09T13:32:31.978133399Z [err]  2025-10-09 13:32:30,188:ERROR:discord.ui.view: Ignoring exception in view <SubmissionButtonView timeout=None children=3> for item <Button style=<ButtonStyle.secondary: 2> url=None disabled=False label='Submit File Instructions' emoji=<PartialEmoji animated=False name='📁' id=None> row=None sku_id=None id=None>
+2025-10-09T13:32:31.978140187Z [err]  Traceback (most recent call last):
+2025-10-09T13:32:31.978146090Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/ui/view.py", line 555, in _scheduled_task
+2025-10-09T13:32:31.978151090Z [err]      await item.callback(interaction)
+2025-10-09T13:32:31.978156552Z [err]    File "/app/cogs/submission_cog.py", line 247, in submit_file_button
+2025-10-09T13:32:31.978162589Z [err]      await interaction.response.send_message(embed=embed, ephemeral=True)
+2025-10-09T13:32:31.978168673Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/interactions.py", line 1051, in send_message
+2025-10-09T13:32:31.978174331Z [err]      response = await adapter.create_interaction_response(
+2025-10-09T13:32:31.978181434Z [err]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:32:31.978187544Z [err]      ...<6 lines>...
+2025-10-09T13:32:31.978192982Z [err]      )
+2025-10-09T13:32:31.978200977Z [err]      ^
+2025-10-09T13:32:31.978206639Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/webhook/async_.py", line 224, in request
+2025-10-09T13:32:31.978212073Z [err]      raise NotFound(response, data)
+2025-10-09T13:32:31.978218298Z [err]  discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09T13:32:39.510831447Z [err]  2025-10-09 13:32:39,501:ERROR:discord.app_commands.tree: Ignoring exception in command 'connect'
+2025-10-09T13:32:39.510838960Z [err]  Traceback (most recent call last):
+2025-10-09T13:32:39.510843866Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 858, in _do_call
+2025-10-09T13:32:39.510848104Z [err]      return await self._callback(self.binding, interaction, **params)  # type: ignore
+2025-10-09T13:32:39.510852009Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:32:39.510857988Z [err]    File "/app/cogs/tiktok_cog.py", line 105, in connect
+2025-10-09T13:32:39.510861802Z [err]      await interaction.response.send_message(embed=embed, ephemeral=True)
+2025-10-09T13:32:39.510865959Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/interactions.py", line 1051, in send_message
+2025-10-09T13:32:39.510869925Z [err]      response = await adapter.create_interaction_response(
+2025-10-09T13:32:39.510873910Z [err]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:32:39.510879430Z [err]      ...<6 lines>...
+2025-10-09T13:32:39.510883164Z [err]      )
+2025-10-09T13:32:39.510887106Z [err]      ^
+2025-10-09T13:32:39.510891381Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/webhook/async_.py", line 224, in request
+2025-10-09T13:32:39.510895335Z [err]      raise NotFound(response, data)
+2025-10-09T13:32:39.510898939Z [err]  discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09T13:32:39.510903176Z [err]  
+2025-10-09T13:32:39.510907072Z [err]  The above exception was the direct cause of the following exception:
+2025-10-09T13:32:39.510910999Z [err]  
+2025-10-09T13:32:39.510915114Z [err]  Traceback (most recent call last):
+2025-10-09T13:32:39.510919120Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/tree.py", line 1297, in _call
+2025-10-09T13:32:39.510922952Z [err]      await command._invoke_with_namespace(interaction, namespace)
+2025-10-09T13:32:39.510927000Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 884, in _invoke_with_namespace
+2025-10-09T13:32:39.510930565Z [err]      return await self._do_call(interaction, transformed_values)
+2025-10-09T13:32:39.510934667Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:32:39.510939648Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 877, in _do_call
+2025-10-09T13:32:39.510970132Z [err]      raise CommandInvokeError(self, e) from e
+2025-10-09T13:32:39.510976287Z [err]  discord.app_commands.errors.CommandInvokeError: Command 'connect' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09T13:34:20.145621301Z [err]  2025-10-09 13:34:12,832:ERROR:discord.app_commands.tree: Ignoring exception in command 'disconnect'
+2025-10-09T13:34:20.145627755Z [err]  Traceback (most recent call last):
+2025-10-09T13:34:20.145636023Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 858, in _do_call
+2025-10-09T13:34:20.145641060Z [err]      return await self._callback(self.binding, interaction, **params)  # type: ignore
+2025-10-09T13:34:20.145647090Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:34:20.145652422Z [err]    File "/app/cogs/tiktok_cog.py", line 248, in disconnect
+2025-10-09T13:34:20.145658262Z [err]      await interaction.response.send_message("Not currently connected or attempting to connect to any stream.", ephemeral=True)
+2025-10-09T13:34:20.145665043Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/interactions.py", line 1051, in send_message
+2025-10-09T13:34:20.145671188Z [err]      response = await adapter.create_interaction_response(
+2025-10-09T13:34:20.145678339Z [err]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:34:20.145684597Z [err]      ...<6 lines>...
+2025-10-09T13:34:20.145690888Z [err]      )
+2025-10-09T13:34:20.145699182Z [err]      ^
+2025-10-09T13:34:20.145704066Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/webhook/async_.py", line 224, in request
+2025-10-09T13:34:20.145709664Z [err]      raise NotFound(response, data)
+2025-10-09T13:34:20.145715465Z [err]  discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09T13:34:20.145723300Z [err]  
+2025-10-09T13:34:20.145729036Z [err]  The above exception was the direct cause of the following exception:
+2025-10-09T13:34:20.145734706Z [err]  
+2025-10-09T13:34:20.145740366Z [err]  Traceback (most recent call last):
+2025-10-09T13:34:20.145746760Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/tree.py", line 1297, in _call
+2025-10-09T13:34:20.149066265Z [err]      await command._invoke_with_namespace(interaction, namespace)
+2025-10-09T13:34:20.149071576Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 884, in _invoke_with_namespace
+2025-10-09T13:34:20.149076214Z [err]      return await self._do_call(interaction, transformed_values)
+2025-10-09T13:34:20.149080943Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-09T13:34:20.149086364Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/app_commands/commands.py", line 877, in _do_call
+2025-10-09T13:34:20.149090601Z [err]      raise CommandInvokeError(self, e) from e
+2025-10-09T13:34:20.149094864Z [err]  discord.app_commands.errors.CommandInvokeError: Command 'disconnect' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
