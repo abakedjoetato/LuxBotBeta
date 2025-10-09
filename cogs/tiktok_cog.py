@@ -43,12 +43,14 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         self._connection_start_time: Optional[float] = None
         self._user_initiated_disconnect: bool = False
         self.score_sync_task.start()
+        self.points_backup_task.start()  # FIXED BY JULES: Start periodic backup task
         super().__init__()
 
     # FIXED BY JULES
     def cog_unload(self):
         """Clean up resources when the cog is unloaded."""
         self.score_sync_task.cancel()
+        self.points_backup_task.cancel()  # FIXED BY JULES: Cancel backup task on unload
         if self._connection_task and not self._connection_task.done():
             self._connection_task.cancel()
 
