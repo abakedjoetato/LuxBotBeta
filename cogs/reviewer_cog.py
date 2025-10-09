@@ -108,17 +108,24 @@ class ReviewerCog(commands.Cog):
         await self.update_pending_skips_display(reset_page=True)
 
     # --- Main Queue Display Logic ---
-    async def update_main_queue_display(self, interaction: Optional[discord.Interaction] = None, page_offset: int = 0, reset_page: bool = False):
+    async def update_main_queue_display(self, interaction: Optional[discord.Interaction] = None, page_offset: int = 0, reset_page: bool = False, from_auto_refresh: bool = False):
         if not self.main_queue_message:
             return
 
         if interaction:
             await interaction.response.defer()
 
+        # Handle page updates
         if reset_page:
             self.main_queue_page = 0
-        else:
+        elif page_offset != 0:
+            # Only update page when user clicks buttons, not from auto-refresh
             self.main_queue_page += page_offset
+            # Update page in database for persistence
+            if self.main_queue_message and not from_auto_refresh:
+                channel_id = self.bot.settings_cache.get('reviewer_channel_id')
+                if channel_id:
+                    await self.bot.db.update_persistent_embed_page('reviewer_main_queue', channel_id, self.main_queue_page)
 
         queue_data = await self.bot.db.get_all_active_queue_songs(detailed=True)
         total_pages = math.ceil(len(queue_data) / 10) or 1
@@ -170,17 +177,24 @@ class ReviewerCog(commands.Cog):
             await self.main_queue_message.edit(embed=embed, view=view)
 
     # --- Pending Skips Display Logic ---
-    async def update_pending_skips_display(self, interaction: Optional[discord.Interaction] = None, page_offset: int = 0, reset_page: bool = False):
+    async def update_pending_skips_display(self, interaction: Optional[discord.Interaction] = None, page_offset: int = 0, reset_page: bool = False, from_auto_refresh: bool = False):
         if not self.pending_skips_message:
             return
 
         if interaction:
             await interaction.response.defer()
 
+        # Handle page updates
         if reset_page:
             self.pending_skips_page = 0
-        else:
+        elif page_offset != 0:
+            # Only update page when user clicks buttons, not from auto-refresh
             self.pending_skips_page += page_offset
+            # Update page in database for persistence
+            if self.pending_skips_message and not from_auto_refresh:
+                channel_id = self.bot.settings_cache.get('reviewer_channel_id')
+                if channel_id:
+                    await self.bot.db.update_persistent_embed_page('reviewer_pending_skips', channel_id, self.pending_skips_page)
 
         queue_data = await self.bot.db.get_queue_submissions(QueueLine.PENDING_SKIPS.value)
         total_pages = math.ceil(len(queue_data) / 10) or 1
@@ -242,11 +256,15 @@ class ReviewerCog(commands.Cog):
         self.bot.settings_cache['reviewer_main_queue_message_id'] = self.main_queue_message.id
         self.bot.settings_cache['reviewer_pending_skips_message_id'] = self.pending_skips_message.id
 
+        # Register as persistent auto-updating embeds
+        await self.bot.db.register_persistent_embed('reviewer_main_queue', channel.id, self.main_queue_message.id)
+        await self.bot.db.register_persistent_embed('reviewer_pending_skips', channel.id, self.pending_skips_message.id)
+
         # Initial update
         await self.update_main_queue_display(reset_page=True)
         await self.update_pending_skips_display(reset_page=True)
 
-        await interaction.followup.send(f"✅ Reviewer views have been successfully set up in {channel.mention}.", ephemeral=True)
+        await interaction.followup.send(f"✅ Reviewer views have been successfully set up in {channel.mention}.\n🔄 Auto-refresh enabled (updates every 5 seconds).", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

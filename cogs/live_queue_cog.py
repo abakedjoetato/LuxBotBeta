@@ -78,17 +78,24 @@ class LiveQueueCog(commands.Cog):
         logging.info("LiveQueueCog received queue_update event. Refreshing display.")
         await self.update_display(reset_page=True)
 
-    async def update_display(self, interaction: Optional[discord.Interaction] = None, page_offset: int = 0, reset_page: bool = False):
+    async def update_display(self, interaction: Optional[discord.Interaction] = None, page_offset: int = 0, reset_page: bool = False, from_auto_refresh: bool = False):
         if not self.queue_message:
             return
 
         if interaction:
             await interaction.response.defer()
 
+        # Handle page updates
         if reset_page:
             self.current_page = 0
-        else:
+        elif page_offset != 0:
+            # Only update page when user clicks buttons, not from auto-refresh
             self.current_page += page_offset
+            # Update page in database for persistence
+            if self.queue_message and not from_auto_refresh:
+                channel_id = self.bot.settings_cache.get('public_live_queue_channel_id')
+                if channel_id:
+                    await self.bot.db.update_persistent_embed_page('public_live_queue', channel_id, self.current_page)
 
         queue_data = await self.bot.db.get_all_active_queue_songs(detailed=True)
         total_pages = math.ceil(len(queue_data) / self.page_size) or 1
@@ -149,10 +156,13 @@ class LiveQueueCog(commands.Cog):
         self.bot.settings_cache['public_live_queue_channel_id'] = channel.id
         self.bot.settings_cache['public_live_queue_message_id'] = self.queue_message.id
 
+        # Register as persistent auto-updating embed
+        await self.bot.db.register_persistent_embed('public_live_queue', channel.id, self.queue_message.id)
+
         # Initial update
         await self.update_display(reset_page=True)
 
-        await interaction.followup.send(f"✅ Public live queue has been successfully set up in {channel.mention}.", ephemeral=True)
+        await interaction.followup.send(f"✅ Public live queue has been successfully set up in {channel.mention}.\n🔄 Auto-refresh enabled (updates every 5 seconds).", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

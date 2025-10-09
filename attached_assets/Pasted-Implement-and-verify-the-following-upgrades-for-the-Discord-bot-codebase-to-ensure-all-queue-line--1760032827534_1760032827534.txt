@@ -1,0 +1,149 @@
+Implement and verify the following upgrades for the Discord bot codebase to ensure all queue, line, and reviewer embeds are persistent, auto-updating, and never expire.
+
+
+---
+
+Goal Overview
+
+All embeds (queues, lines, reviewer views) should remain active indefinitely, automatically refreshing to reflect the latest data.
+
+Avoid Discord rate limits by using a 5-second update interval.
+
+Pagination buttons and other interactive elements must stay live permanently, surviving bot restarts.
+
+
+
+---
+
+1. Persistent Views
+
+For every discord.ui.View used in embeds:
+
+Set timeout=None.
+
+Assign each button a unique custom_id so the view can be re-registered after restarts.
+
+On bot startup (on_ready), re-register each view using bot.add_view(...).
+
+
+Ensure no views expire or lose functionality even after long uptime or bot restarts.
+
+
+
+---
+
+2. Embed Message Persistence
+
+For each queue, line, or reviewer embed:
+
+When initially sent, store the message ID and channel ID in the database or cache.
+
+Always edit the existing message instead of creating a new one.
+
+If a message or embed is missing, automatically recreate it and update the stored IDs.
+
+
+
+
+---
+
+3. Auto-Refresh Loop (Every 5 Seconds)
+
+Create a background async task (asyncio.create_task) that runs continuously:
+
+Wait until the bot is ready (await bot.wait_until_ready()).
+
+Every 5 seconds, iterate through all stored persistent embeds.
+
+For each embed:
+
+Fetch the associated message using stored channel_id and message_id.
+
+Rebuild the embed content (queue order, points, etc.).
+
+Edit the existing message (await message.edit(embed=new_embed, view=persistent_view)).
+
+
+Include a short delay between edits if multiple embeds exist, to reduce the chance of hitting Discord’s rate limits.
+
+
+
+Example (pseudocode):
+
+async def auto_refresh_embeds():
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        active_embeds = db.get_all_active_embeds()
+        for embed_data in active_embeds:
+            try:
+                channel = bot.get_channel(embed_data.channel_id)
+                message = await channel.fetch_message(embed_data.message_id)
+                new_embed = build_dynamic_embed(embed_data)
+                await message.edit(embed=new_embed, view=get_persistent_view(embed_data.type))
+                await asyncio.sleep(1)  # small delay between edits
+            except Exception as e:
+                log.warning(f"Failed to refresh embed {embed_data.id}: {e}")
+        await asyncio.sleep(5)
+
+
+---
+
+4. Pagination Integration
+
+All queue and line embeds must remain paginated.
+
+Pagination buttons (Prev, Next) should:
+
+Update the embed page index in the database.
+
+Immediately trigger an embed refresh.
+
+
+The background refresh loop should respect the current stored page index when rebuilding the embed.
+
+
+
+---
+
+5. Safety & Performance
+
+Ensure embed updates are batched or staggered to prevent exceeding Discord’s rate limit (50 edits / 10 seconds).
+
+Use caching or delta updates — only rebuild embeds that have changed since the last update.
+
+Confirm that the background task restarts automatically if it encounters an error or exception.
+
+
+
+---
+
+6. Validation & Testing
+
+Confirm that:
+
+All embeds remain visible and interactive after several hours.
+
+The bot can be restarted without breaking pagination or buttons.
+
+Updates appear within 5 seconds of any data change.
+
+No duplicate embeds are created.
+
+
+Provide a log summary or status message every minute showing how many embeds are being refreshed.
+
+
+
+---
+
+Final Deliverables
+
+Persistent View classes with timeout=None
+
+Database or in-memory tracking of all active embeds (message ID + channel ID)
+
+Auto-refresh background loop (5-second interval)
+
+Graceful handling of deleted or missing messages
+
+Verified no rate limit violations

@@ -129,6 +129,21 @@ class Database:
                 """)
                 await conn.execute("INSERT INTO bot_config (key, value) VALUES ('free_line_closed', '0') ON CONFLICT (key) DO NOTHING;")
 
+                # persistent_embeds table for auto-updating persistent displays
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS persistent_embeds (
+                        id SERIAL PRIMARY KEY,
+                        embed_type TEXT NOT NULL,
+                        channel_id BIGINT NOT NULL,
+                        message_id BIGINT NOT NULL,
+                        current_page INTEGER DEFAULT 0,
+                        last_content_hash TEXT,
+                        last_updated TIMESTAMPTZ DEFAULT NOW(),
+                        is_active BOOLEAN DEFAULT TRUE,
+                        UNIQUE(embed_type, channel_id)
+                    );
+                """)
+
                 # queue_config to map queues to channels (for admin views, etc)
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS queue_config (
@@ -691,6 +706,76 @@ class Database:
                 if interaction_type == 'gift' and row['total_coins']:
                     stats['gift_coins'] = int(row['total_coins'])
         return stats
+
+    # ========================================
+    # Persistent Embeds Methods
+    # ========================================
+
+    async def register_persistent_embed(self, embed_type: str, channel_id: int, message_id: int) -> None:
+        """Register or update a persistent embed for auto-refresh tracking."""
+        query = """
+            INSERT INTO persistent_embeds (embed_type, channel_id, message_id, current_page, is_active, last_updated)
+            VALUES ($1, $2, $3, 0, TRUE, NOW())
+            ON CONFLICT (embed_type, channel_id)
+            DO UPDATE SET message_id = $3, is_active = TRUE, last_updated = NOW()
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, embed_type, channel_id, message_id)
+            logging.info(f"Registered persistent embed: {embed_type} in channel {channel_id}")
+
+    async def get_all_active_persistent_embeds(self) -> List[Dict[str, Any]]:
+        """Get all active persistent embeds for the refresh loop."""
+        query = """
+            SELECT id, embed_type, channel_id, message_id, current_page, last_content_hash, last_updated
+            FROM persistent_embeds
+            WHERE is_active = TRUE
+            ORDER BY embed_type
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query)
+            return [dict(row) for row in rows]
+
+    async def get_persistent_embed(self, embed_type: str, channel_id: int) -> Optional[Dict[str, Any]]:
+        """Get a specific persistent embed by type and channel."""
+        query = """
+            SELECT id, embed_type, channel_id, message_id, current_page, last_content_hash, last_updated, is_active
+            FROM persistent_embeds
+            WHERE embed_type = $1 AND channel_id = $2
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query, embed_type, channel_id)
+            return dict(row) if row else None
+
+    async def update_persistent_embed_page(self, embed_type: str, channel_id: int, page: int) -> None:
+        """Update the current page for a persistent embed."""
+        query = """
+            UPDATE persistent_embeds
+            SET current_page = $3, last_updated = NOW()
+            WHERE embed_type = $1 AND channel_id = $2
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, embed_type, channel_id, page)
+
+    async def update_persistent_embed_hash(self, embed_type: str, channel_id: int, content_hash: str) -> None:
+        """Update the content hash for a persistent embed after refreshing."""
+        query = """
+            UPDATE persistent_embeds
+            SET last_content_hash = $3, last_updated = NOW()
+            WHERE embed_type = $1 AND channel_id = $2
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, embed_type, channel_id, content_hash)
+
+    async def deactivate_persistent_embed(self, embed_type: str, channel_id: int) -> None:
+        """Mark a persistent embed as inactive (won't be auto-refreshed)."""
+        query = """
+            UPDATE persistent_embeds
+            SET is_active = FALSE, last_updated = NOW()
+            WHERE embed_type = $1 AND channel_id = $2
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, embed_type, channel_id)
+            logging.info(f"Deactivated persistent embed: {embed_type} in channel {channel_id}")
 
     async def close(self):
         """Close database connection pool."""
