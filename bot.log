@@ -1047,3 +1047,74 @@ Traceback (most recent call last):
   File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 877, in _do_call
     raise CommandInvokeError(self, e) from e
 discord.app_commands.errors.CommandInvokeError: Command 'link-tiktok' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09 19:02:59,450:ERROR:discord.app_commands.tree: Ignoring exception in autocomplete for 'link-tiktok'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1289, in _call
+    await command._invoke_autocomplete(interaction, focused, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 928, in _invoke_autocomplete
+    await interaction.response.autocomplete(choices)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1332, in autocomplete
+    await adapter.create_interaction_response(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-10-09 19:03:02,738:ERROR:discord.app_commands.tree: Ignoring exception in autocomplete for 'link-tiktok'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1289, in _call
+    await command._invoke_autocomplete(interaction, focused, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 928, in _invoke_autocomplete
+    await interaction.response.autocomplete(choices)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1332, in autocomplete
+    await adapter.create_interaction_response(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-10-09 19:03:05,212:ERROR:discord.app_commands.tree: Ignoring exception in autocomplete for 'link-tiktok'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1289, in _call
+    await command._invoke_autocomplete(interaction, focused, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 928, in _invoke_autocomplete
+    await interaction.response.autocomplete(choices)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1332, in autocomplete
+    await adapter.create_interaction_response(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-10-09 19:03:06,715:ERROR:discord.app_commands.tree: Ignoring exception in autocomplete for 'link-tiktok'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1289, in _call
+    await command._invoke_autocomplete(interaction, focused, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 928, in _invoke_autocomplete
+    await interaction.response.autocomplete(choices)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1332, in autocomplete
+    await adapter.create_interaction_response(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-10-09 19:03:09,423:ERROR:discord.app_commands.tree: Ignoring exception in autocomplete for 'link-tiktok'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1289, in _call
+    await command._invoke_autocomplete(interaction, focused, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 928, in _invoke_autocomplete
+    await interaction.response.autocomplete(choices)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1332, in autocomplete
+    await adapter.create_interaction_response(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09 19:03:38,991:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 19:03:38,991:INFO:discord.client: logging in using static token
+2025-10-09 19:03:39,505:INFO:root: Database pool created.
+2025-10-09 19:03:39,539:INFO:root: Database initialized successfully.
+2025-10-09 19:03:41,232:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 19:03:41,238:INFO:root: SelfHealingCog loaded.
+2025-10-09 19:03:41,239:INFO:root: EmbedRefreshCog loaded. Starting auto-refresh loop...
+2025-10-09 19:03:41,825:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: 026a06b68f067979955b55b9d0d9e1f8).
+2025-10-09 19:03:43,830:INFO:root: ✅ Auto-refresh loop ready to start.
+2025-10-09 19:03:43,831:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-09 19:03:43,831:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-09 19:03:43,837:INFO:root: Points backup completed: 1 users, 0 TikTok handles
+2025-10-09 19:03:46,834:INFO:root: ✅ Re-registered LiveQueueCog views
+2025-10-09 19:03:46,835:INFO:root: ✅ Re-registered ReviewerCog views
+2025-10-09 19:03:46,835:INFO:root: ✅ Re-registered SubmissionCog views
+2025-10-09 19:03:46,835:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).

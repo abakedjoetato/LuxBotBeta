@@ -588,8 +588,21 @@ class Database:
             return await conn.fetchval(query, tiktok_handle)
 
     async def find_gift_rewardable_submission(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """Finds the most recent submission from a user that can be rewarded by a gift."""
-        non_rewardable_queues = [q.value for q in QueueLine if q != QueueLine.FREE]
+        """Finds the most recent submission from a user that can be rewarded by a gift.
+        
+        Selects from: Free line and Pending Skips
+        Excludes: All skip lines (5, 10, 15, 20, 25+), Songs Played, and Removed
+        """
+        # Only exclude submissions already in skip lines, songs played, or removed
+        non_rewardable_queues = [
+            QueueLine.FIVESKIP.value,
+            QueueLine.TENSKIP.value,
+            QueueLine.FIFTEENSKIP.value,
+            QueueLine.TWENTYSKIP.value,
+            QueueLine.TWENTYFIVEPLUSSKIP.value,
+            QueueLine.SONGS_PLAYED.value,
+            QueueLine.REMOVED.value
+        ]
         query = "SELECT * FROM submissions WHERE user_id = $1 AND (queue_line IS NULL OR NOT (queue_line = ANY($2::text[]))) ORDER BY submission_time DESC LIMIT 1;"
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(query, user_id, non_rewardable_queues)

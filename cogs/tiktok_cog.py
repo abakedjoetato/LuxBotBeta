@@ -11,11 +11,13 @@ from TikTokLive.client.errors import UserNotFoundError, UserOfflineError
 from database import QueueLine
 
 # --- Constants ---
-# Re-implementing the tiered gift logic as requested
+# Tiered gift logic: Maps coin amounts to skip line rewards
 GIFT_TIER_MAP = {
-    5000: QueueLine.TWENTYFIVEPLUSSKIP.value,
-    2000: QueueLine.TENSKIP.value,
-    1000: QueueLine.FIVESKIP.value,
+    6000: QueueLine.TWENTYFIVEPLUSSKIP.value,  # 6000+ coins → 25+ Skip
+    5000: QueueLine.TWENTYSKIP.value,           # 5000-5999 coins → 20 Skip
+    4000: QueueLine.FIFTEENSKIP.value,          # 4000-4999 coins → 15 Skip
+    2000: QueueLine.TENSKIP.value,              # 2000-3999 coins → 10 Skip
+    1000: QueueLine.FIVESKIP.value,             # 1000-1999 coins → 5 Skip
 }
 
 INTERACTION_POINTS = {
