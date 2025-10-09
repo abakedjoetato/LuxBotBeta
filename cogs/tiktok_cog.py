@@ -6,7 +6,7 @@ from discord.ext import commands, tasks
 from discord import app_commands
 from typing import Optional, Dict
 from TikTokLive import TikTokLiveClient
-from TikTokLive.events import CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, ShareEvent, FollowEvent
+from TikTokLive.events import CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, ShareEvent, FollowEvent, JoinEvent
 from TikTokLive.client.errors import UserNotFoundError, UserOfflineError
 from database import QueueLine
 
@@ -139,6 +139,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
                 # Add all event listeners
                 client.add_listener(ConnectEvent, self.on_connect)
                 client.add_listener(DisconnectEvent, self.on_disconnect)
+                client.add_listener(JoinEvent, self.on_join)
                 client.add_listener(LikeEvent, self.on_like)
                 client.add_listener(CommentEvent, self.on_comment)
                 client.add_listener(ShareEvent, self.on_share)
@@ -468,6 +469,18 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
                 await self.bot.db.add_points_to_user(discord_id, points)
         except Exception as e:
             logging.error(f"Failed to handle TikTok interaction ({interaction_type}): {e}", exc_info=True)
+
+    async def on_join(self, event: JoinEvent):
+        """Captures TikTok handles when users join the stream (no points awarded for joining)."""
+        if not self.current_session_id or not hasattr(event, 'user') or not hasattr(event.user, 'unique_id'):
+            return
+        
+        try:
+            # Just capture the handle in the database, no points awarded
+            await self.bot.db.upsert_tiktok_account(event.user.unique_id)
+            logging.debug(f"TIKTOK: User {event.user.unique_id} joined the stream (captured in database)")
+        except Exception as e:
+            logging.error(f"Failed to capture TikTok join event: {e}", exc_info=True)
 
     async def on_like(self, event: LikeEvent):
         await self._handle_interaction(event, 'like', INTERACTION_POINTS['like'])

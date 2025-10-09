@@ -106,6 +106,20 @@ Preferred communication style: Simple, everyday language.
 - **Effect**: Users can link any TikTok handle without waiting for it to appear on stream first
 - **Note**: This is a temporary bypass - validation can be re-enabled by uncommenting lines 419-421
 
+### Enhancement - Comprehensive TikTok Handle Capture (October 09, 2025)
+- **Added JoinEvent Handler**: Now captures ALL TikTok handles entering live sessions, not just those who interact
+- **Implementation**: Added `on_join()` event handler to capture users who join the stream
+- **Database Updates**: All joining users are automatically added to `tiktok_accounts` table via `upsert_tiktok_account()`
+- **Complete Coverage**: System now captures handles from ALL events:
+  - JoinEvent → Users entering the stream (newly added)
+  - LikeEvent → Stream likes
+  - CommentEvent → Chat messages
+  - ShareEvent → Stream shares
+  - FollowEvent → New follows
+  - GiftEvent → Gift sends
+- **No Points for Joining**: Join events only capture handles, no engagement points awarded (points only for interactions)
+- **Location**: Lines 12, 145, 476-486 in cogs/tiktok_cog.py
+
 ## System Architecture
 
 ### UI/UX Decisions
