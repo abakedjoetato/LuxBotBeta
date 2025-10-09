@@ -311,6 +311,25 @@ class Database:
             rows = await conn.fetch(query, discord_id)
             return [row['handle_name'] for row in rows]
 
+    # FIXED BY JULES
+    async def get_unlinked_tiktok_handles(self, current_input: str = "") -> List[str]:
+        """
+        Gets all TikTok handles that are not currently linked to any Discord account,
+        for use in autocomplete. Filters by the user's current input.
+        """
+        query = """
+            SELECT handle_name FROM tiktok_accounts
+            WHERE linked_discord_id IS NULL
+            AND handle_name ILIKE $1
+            ORDER BY last_seen DESC
+            LIMIT 25;
+        """
+        async with self.pool.acquire() as conn:
+            # Add wildcards for the ILIKE search
+            search_pattern = f"%{current_input}%"
+            rows = await conn.fetch(query, search_pattern)
+            return [row['handle_name'] for row in rows]
+
     async def start_live_session(self, tiktok_username: str) -> int:
         """Starts a new live session and returns the session ID."""
         query = "INSERT INTO live_sessions (tiktok_username) VALUES ($1) RETURNING id;"
