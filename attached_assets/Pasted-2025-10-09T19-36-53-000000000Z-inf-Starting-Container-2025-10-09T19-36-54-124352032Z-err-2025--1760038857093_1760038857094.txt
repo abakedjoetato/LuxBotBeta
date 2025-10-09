@@ -1,0 +1,39 @@
+2025-10-09T19:36:53.000000000Z [inf]  Starting Container
+2025-10-09T19:36:54.124352032Z [err]  2025-10-09 19:36:54,054:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09T19:36:54.124356385Z [err]  2025-10-09 19:36:54,054:INFO:discord.client: logging in using static token
+2025-10-09T19:36:54.575949344Z [err]  2025-10-09 19:36:54,568:INFO:root: Database pool created.
+2025-10-09T19:36:54.609359411Z [err]  2025-10-09 19:36:54,592:INFO:root: Database initialized successfully.
+2025-10-09T19:36:55.418375187Z [err]  2025-10-09 19:36:55,415:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09T19:36:55.430688870Z [err]  2025-10-09 19:36:55,429:INFO:root: SelfHealingCog loaded.
+2025-10-09T19:36:55.434716573Z [err]  2025-10-09 19:36:55,431:INFO:root: EmbedRefreshCog loaded. Starting auto-refresh loop...
+2025-10-09T19:36:56.068283606Z [err]  2025-10-09 19:36:56,062:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: a16ac37555591cebec39934d104a8e3c).
+2025-10-09T19:36:58.070992557Z [err]  2025-10-09 19:36:58,070:INFO:root: ✅ Auto-refresh loop ready to start.
+2025-10-09T19:36:58.074943815Z [err]  2025-10-09 19:36:58,071:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-09T19:36:58.074955672Z [err]  2025-10-09 19:36:58,071:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-09T19:36:58.083778037Z [err]  2025-10-09 19:36:58,079:INFO:root: Points backup completed: 3 users, 272 TikTok handles
+2025-10-09T19:37:01.073520828Z [err]  2025-10-09 19:37:01,072:INFO:root: ✅ Re-registered LiveQueueCog views
+2025-10-09T19:37:01.073593416Z [err]  2025-10-09 19:37:01,072:INFO:root: ✅ Re-registered ReviewerCog views
+2025-10-09T19:37:01.073604389Z [err]  2025-10-09 19:37:01,073:INFO:root: ✅ Re-registered SubmissionCog views
+2025-10-09T19:37:01.073612301Z [err]  2025-10-09 19:37:01,073:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).
+2025-10-09T19:38:01.093265978Z [err]  2025-10-09 19:37:55,678:INFO:root: 📊 Auto-Refresh Status: 3 active embeds | 36 total refreshes | 0 errors
+2025-10-09T19:38:51.106431564Z [err]  2025-10-09 19:38:47,820:INFO:root: LiveQueueCog received queue_update event. Refreshing display.
+2025-10-09T19:38:51.106435647Z [err]  2025-10-09 19:38:47,820:INFO:root: ReviewerCog received queue_update event. Refreshing displays.
+2025-10-09T19:38:55.840974155Z [err]  2025-10-09 19:38:55,835:INFO:root: 📊 Auto-Refresh Status: 3 active embeds | 72 total refreshes | 0 errors
+2025-10-09T19:39:15.841497989Z [err]  2025-10-09 19:39:09,607:INFO:root: LiveQueueCog received queue_update event. Refreshing display.
+2025-10-09T19:39:15.841511246Z [err]  2025-10-09 19:39:09,608:INFO:root: ReviewerCog received queue_update event. Refreshing displays.
+2025-10-09T19:39:24.485882614Z [err]  2025-10-09 19:39:24,476:INFO:httpx: HTTP Request: GET https://www.tiktok.com/@luxuryforbes/live? "HTTP/1.1 200 OK"
+2025-10-09T19:39:24.663131685Z [err]  2025-10-09 19:39:24,658:INFO:httpx: HTTP Request: GET https://webcast.tiktok.com/webcast/room/check_alive/?aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-TT&browser_name=Mozilla&browser_online=true&browser_platform=Win32&browser_version=5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F129.0.0.0%20Safari%2F537.36&cookie_enabled=true&device_platform=web_pc&focus_state=true&from_page=&history_len=7&is_fullscreen=false&is_page_visible=true&screen_height=1440&screen_width=2560&tz_name=America/Port_of_Spain&channel=tiktok_web&data_collection_enabled=true&os=windows&priority_region=TT&region=TT&user_is_login=false&webcast_language=en&msToken=&referer=https://www.tiktok.com/@@luxuryforbes/live&root_referer=https://www.tiktok.com/@@luxuryforbes/live&device_id=99402342555128474545&room_id=7559304290704149262&room_ids=7559304290704149262 "HTTP/1.1 200 OK"
+2025-10-09T19:39:29.428756648Z [err]  2025-10-09 19:39:29,420:ERROR:discord.ui.view: Ignoring exception in view <ReviewerMainQueueView timeout=None children=3> for item <Button style=<ButtonStyle.primary: 1> url=None disabled=False label='Refresh' emoji=<PartialEmoji animated=False name='🔄' id=None> row=None sku_id=None id=None>
+2025-10-09T19:39:29.428761075Z [err]  Traceback (most recent call last):
+2025-10-09T19:39:29.428765306Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/ui/view.py", line 555, in _scheduled_task
+2025-10-09T19:39:29.428769331Z [err]      await item.callback(interaction)
+2025-10-09T19:39:29.428773430Z [err]    File "/app/cogs/reviewer_cog.py", line 37, in refresh_button
+2025-10-09T19:39:29.428777553Z [err]      await self.cog.update_main_queue_display(interaction=interaction, reset_page=True)
+2025-10-09T19:39:29.428781765Z [err]    File "/app/cogs/reviewer_cog.py", line 175, in update_main_queue_display
+2025-10-09T19:39:29.428785697Z [err]      await interaction.response.edit_message(embed=embed, view=view)
+2025-10-09T19:39:29.428790462Z [err]    File "/app/.venv/lib/python3.13/site-packages/discord/interactions.py", line 1167, in edit_message
+2025-10-09T19:39:29.428798278Z [err]      raise InteractionResponded(self._parent)
+2025-10-09T19:39:29.428802460Z [err]  discord.errors.InteractionResponded: This interaction has already been responded to before
+2025-10-09T19:39:30.036049263Z [err]  2025-10-09 19:39:30,033:INFO:httpx: HTTP Request: GET https://tiktok.eulerstream.com/webcast/fetch/?client=ttlive-python&room_id=7559304290704149262&user_agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%29+AppleWebKit%2F537.36+%28KHTML%2C+like+Gecko%29+Chrome%2F129.0.0.0+Safari%2F537.36&platform=web&client_enter=true "HTTP/1.1 200 OK"
+2025-10-09T19:39:30.821456771Z [err]  2025-10-09 19:39:30,811:INFO:root: TIKTOK: Connected to room ID 7559304290704149262
+2025-10-09T19:39:30.912444992Z [err]  2025-10-09 19:39:30,891:INFO:root: TIKTOK: Started live session with ID 8
