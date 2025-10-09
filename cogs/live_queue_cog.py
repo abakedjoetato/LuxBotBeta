@@ -82,7 +82,8 @@ class LiveQueueCog(commands.Cog):
         if not self.queue_message:
             return
 
-        if interaction:
+        # Defer interaction if not already responded
+        if interaction and not interaction.response.is_done():
             await interaction.response.defer()
 
         # Handle page updates
@@ -125,7 +126,8 @@ class LiveQueueCog(commands.Cog):
         view.next_button.disabled = self.current_page >= total_pages - 1
 
         if interaction:
-            await interaction.response.edit_message(embed=embed, view=view)
+            # Use edit_original_response after deferring
+            await interaction.edit_original_response(embed=embed, view=view)
         else:
             await self.queue_message.edit(embed=embed, view=view)
 

@@ -1242,3 +1242,31 @@ Traceback (most recent call last):
   File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 877, in _do_call
     raise CommandInvokeError(self, e) from e
 discord.app_commands.errors.CommandInvokeError: Command 'link-tiktok' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09 19:48:19,470:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 19:48:19,475:INFO:discord.client: logging in using static token
+2025-10-09 19:48:21,656:INFO:root: Database pool created.
+2025-10-09 19:48:21,750:INFO:root: Database initialized successfully.
+2025-10-09 19:48:22,978:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 19:48:23,122:INFO:root: SelfHealingCog loaded.
+2025-10-09 19:48:23,124:INFO:root: EmbedRefreshCog loaded. Starting auto-refresh loop...
+2025-10-09 19:48:23,744:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: 209a6b9295245882704c32adffac1c81).
+2025-10-09 19:48:25,755:INFO:root: ✅ Auto-refresh loop ready to start.
+2025-10-09 19:48:25,756:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-09 19:48:25,757:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-09 19:48:25,767:INFO:root: Points backup completed: 2 users, 0 TikTok handles
+2025-10-09 19:48:28,758:INFO:root: ✅ Re-registered LiveQueueCog views
+2025-10-09 19:48:28,758:INFO:root: ✅ Re-registered ReviewerCog views
+2025-10-09 19:48:28,759:INFO:root: ✅ Re-registered SubmissionCog views
+2025-10-09 19:48:28,759:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).
+2025-10-09 19:48:42,141:ERROR:discord.ui.view: Ignoring exception in view <SubmissionButtonView timeout=None children=3> for item <Button style=<ButtonStyle.primary: 1> url=None disabled=False label='Submit Link' emoji=<PartialEmoji animated=False name='🔗' id=None> row=None sku_id=None id=None>
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/ui/view.py", line 555, in _scheduled_task
+    await item.callback(interaction)
+  File "/home/runner/workspace/cogs/submission_cog.py", line 236, in submit_link_button
+    await interaction.response.send_modal(SubmissionModal(self.bot))
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1273, in send_modal
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.

@@ -112,7 +112,8 @@ class ReviewerCog(commands.Cog):
         if not self.main_queue_message:
             return
 
-        if interaction:
+        # Defer interaction if not already responded
+        if interaction and not interaction.response.is_done():
             await interaction.response.defer()
 
         # Handle page updates
@@ -172,7 +173,8 @@ class ReviewerCog(commands.Cog):
         view.next_button.disabled = self.main_queue_page >= total_pages - 1
 
         if interaction:
-            await interaction.response.edit_message(embed=embed, view=view)
+            # Use edit_original_response after deferring
+            await interaction.edit_original_response(embed=embed, view=view)
         else:
             await self.main_queue_message.edit(embed=embed, view=view)
 
@@ -181,7 +183,8 @@ class ReviewerCog(commands.Cog):
         if not self.pending_skips_message:
             return
 
-        if interaction:
+        # Defer interaction if not already responded
+        if interaction and not interaction.response.is_done():
             await interaction.response.defer()
 
         # Handle page updates
@@ -218,7 +221,8 @@ class ReviewerCog(commands.Cog):
         view.next_button.disabled = self.pending_skips_page >= total_pages - 1
 
         if interaction:
-            await interaction.response.edit_message(embed=embed, view=view)
+            # Use edit_original_response after deferring
+            await interaction.edit_original_response(embed=embed, view=view)
         else:
             await self.pending_skips_message.edit(embed=embed, view=view)
 
