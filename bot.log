@@ -1181,3 +1181,64 @@ Traceback (most recent call last):
 discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
 2025-10-09 19:34:31,098:INFO:root: LiveQueueCog received queue_update event. Refreshing display.
 2025-10-09 19:34:31,098:INFO:root: ReviewerCog received queue_update event. Refreshing displays.
+2025-10-09 19:35:20,391:ERROR:discord.app_commands.tree: Ignoring exception in command 'submitfile'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 858, in _do_call
+    return await self._callback(self.binding, interaction, **params)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/cogs/submission_cog.py", line 446, in submit_file
+    await interaction.response.defer(ephemeral=True)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 858, in defer
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1297, in _call
+    await command._invoke_with_namespace(interaction, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 884, in _invoke_with_namespace
+    return await self._do_call(interaction, transformed_values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 877, in _do_call
+    raise CommandInvokeError(self, e) from e
+discord.app_commands.errors.CommandInvokeError: Command 'submitfile' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09 19:35:43,811:ERROR:discord.app_commands.tree: Ignoring exception in autocomplete for 'link-tiktok'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1289, in _call
+    await command._invoke_autocomplete(interaction, focused, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 928, in _invoke_autocomplete
+    await interaction.response.autocomplete(choices)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 1332, in autocomplete
+    await adapter.create_interaction_response(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-09 19:35:52,836:ERROR:discord.app_commands.tree: Ignoring exception in command 'link-tiktok'
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 858, in _do_call
+    return await self._callback(self.binding, interaction, **params)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/cogs/user_cog.py", line 35, in link_tiktok
+    await interaction.response.defer(ephemeral=True)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/interactions.py", line 858, in defer
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/webhook/async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/tree.py", line 1297, in _call
+    await command._invoke_with_namespace(interaction, namespace)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 884, in _invoke_with_namespace
+    return await self._do_call(interaction, transformed_values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 877, in _do_call
+    raise CommandInvokeError(self, e) from e
+discord.app_commands.errors.CommandInvokeError: Command 'link-tiktok' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
