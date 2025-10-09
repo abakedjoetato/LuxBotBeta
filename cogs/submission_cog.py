@@ -200,7 +200,9 @@ class SubmissionButtonView(discord.ui.View):
 
     @discord.ui.button(label='Submit from History', style=discord.ButtonStyle.success, emoji='📜', custom_id='submit_history_button')
     async def submit_from_history_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
+        # Check if interaction has already been acknowledged
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
         history = await self.bot.db.get_user_submissions_history(interaction.user.id, limit=25)
         if not history:
             await interaction.followup.send("You have no past submissions to choose from.", ephemeral=True)
