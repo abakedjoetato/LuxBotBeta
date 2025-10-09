@@ -107,7 +107,7 @@ async def _complete_submission(bot, interaction: discord.Interaction, submission
         await interaction.response.defer(ephemeral=True)
 
     try:
-        public_id = await bot.database.add_submission(
+        public_id = await bot.db.add_submission(
             user_id=interaction.user.id,
             username=interaction.user.display_name,
             artist_name=submission_data['artist_name'],
@@ -119,10 +119,10 @@ async def _complete_submission(bot, interaction: discord.Interaction, submission
         )
 
         # Add points to the user for submitting
-        await bot.database.add_points_to_user(interaction.user.id, 10)
+        await bot.db.add_points_to_user(interaction.user.id, 10)
 
         # Sync submission scores for the Free queue
-        await bot.database.sync_submission_scores()
+        await bot.db.sync_submission_scores()
 
         # Dispatch the queue update event
         bot.dispatch('queue_update')
