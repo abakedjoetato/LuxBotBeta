@@ -281,3 +281,23 @@ discord.app_commands.errors.CommandInvokeError: Command 'status' raised an excep
 2025-10-09 14:35:45,635:INFO:root: 🏥 Starting auto-healing sequence...
 2025-10-09 14:35:48,640:INFO:root: ✅ Auto-healing sequence completed successfully.
 2025-10-09 14:35:49,477:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: dc2f6071ee51d55c1cf215fdaf23e299).
+2025-10-09 14:40:56,991:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 14:40:56,993:INFO:discord.client: logging in using static token
+2025-10-09 14:40:57,531:INFO:root: Database pool created.
+2025-10-09 14:40:57,548:INFO:root: Database initialized successfully.
+2025-10-09 14:40:58,755:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 14:40:58,765:INFO:root: SelfHealingCog loaded.
+2025-10-09 14:40:59,307:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: 604de783f8254a1bcd0d695e0b2dff9d).
+2025-10-09 14:41:01,325:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-09 14:41:01,325:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-09 14:41:04,327:INFO:root: ✅ Auto-healing sequence completed successfully.
+2025-10-09 14:41:54,034:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-09 14:41:54,039:INFO:discord.client: logging in using static token
+2025-10-09 14:41:54,587:INFO:root: Database pool created.
+2025-10-09 14:41:54,603:INFO:root: Database initialized successfully.
+2025-10-09 14:41:56,010:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-09 14:41:56,032:INFO:root: SelfHealingCog loaded.
+2025-10-09 14:41:58,318:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: 55702ffe0e49c59dbda472b08ca185e0).
+2025-10-09 14:42:00,328:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-09 14:42:00,328:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-09 14:42:03,330:INFO:root: ✅ Auto-healing sequence completed successfully.
