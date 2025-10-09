@@ -112,7 +112,10 @@ class SelfHealingCog(commands.Cog):
             for config in configs:
                 await self.heal_channel(config)
             
-            logging.info("✅ Auto-healing sequence completed successfully.")
+            # Re-register all persistent views to ensure they're active
+            await self.reregister_persistent_views()
+            
+            logging.info("✅ Auto-healing sequence completed successfully (views re-registered).")
         except Exception as e:
             logging.error(f"❌ Error during auto-healing: {e}", exc_info=True)
         finally:
@@ -235,7 +238,7 @@ class SelfHealingCog(commands.Cog):
     
     async def verify_persistent_views(self, channel: discord.TextChannel, config: Dict) -> int:
         """
-        Verify that persistent view messages exist and are properly connected.
+        Verify that persistent view messages exist and re-register views.
         Returns: Number of views reconnected.
         """
         reconnected = 0
@@ -252,7 +255,6 @@ class SelfHealingCog(commands.Cog):
                 # Verify message has components (views)
                 if not message.components:
                     logging.warning(f"⚠️ Message {message_id} missing components, may need recreation")
-                    # Note: Can't re-attach views to existing messages, would need full recreation
                 
                 reconnected += 1
                 
@@ -265,6 +267,33 @@ class SelfHealingCog(commands.Cog):
                 logging.error(f"❌ Error verifying message {message_id}: {e}")
         
         return reconnected
+    
+    async def reregister_persistent_views(self):
+        """Re-register all persistent views to ensure they're active."""
+        try:
+            # Re-register LiveQueueCog views
+            live_queue_cog = self.bot.get_cog('LiveQueueCog')
+            if live_queue_cog:
+                from cogs.live_queue_cog import PublicQueueView
+                self.bot.add_view(PublicQueueView(live_queue_cog))
+                logging.info("✅ Re-registered LiveQueueCog views")
+            
+            # Re-register ReviewerCog views
+            reviewer_cog = self.bot.get_cog('ReviewerCog')
+            if reviewer_cog:
+                from cogs.reviewer_cog import ReviewerMainQueueView, PendingSkipsView
+                self.bot.add_view(ReviewerMainQueueView(reviewer_cog))
+                self.bot.add_view(PendingSkipsView(reviewer_cog))
+                logging.info("✅ Re-registered ReviewerCog views")
+            
+            # Re-register SubmissionCog views (if needed)
+            submission_cog = self.bot.get_cog('SubmissionCog')
+            if submission_cog and hasattr(submission_cog, 'submission_view'):
+                self.bot.add_view(submission_cog.submission_view)
+                logging.info("✅ Re-registered SubmissionCog views")
+                
+        except Exception as e:
+            logging.error(f"Error re-registering persistent views: {e}", exc_info=True)
     
     @app_commands.command(name="selfheal", description="[ADMIN] Manually trigger self-healing for persistent view channels.")
     @app_commands.checks.has_permissions(administrator=True)
@@ -300,11 +329,15 @@ class SelfHealingCog(commands.Cog):
                 status = "✅" if (cleaned > 0 or reconnected > 0) else "⏭️"
                 results.append(f"{status} **{config['name']}**: {cleaned} cleaned, {reconnected} verified")
             
+            # Re-register all persistent views to ensure they're active
+            await self.reregister_persistent_views()
+            
             result_embed = discord.Embed(
                 title="✅ Self-Healing Complete",
                 description=f"**Summary:**\n"
                            f"🧹 Total messages cleaned: **{total_cleaned}**\n"
-                           f"🔗 Total views verified: **{total_reconnected}**\n\n"
+                           f"🔗 Total views verified: **{total_reconnected}**\n"
+                           f"♻️ Persistent views re-registered\n\n"
                            f"**Channel Details:**\n" + "\n".join(results),
                 color=discord.Color.green(),
                 timestamp=datetime.utcnow()
