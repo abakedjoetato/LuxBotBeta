@@ -30,6 +30,31 @@ Preferred communication style: Simple, everyday language.
   - All interactive buttons (Previous/Next/Refresh) remain functional indefinitely
 - Created change_report_persistent_views_fix.md with detailed analysis and implementation notes
 
+### Major Feature - Persistent Auto-Updating Embeds System
+- **Implemented 5-Second Auto-Refresh**: All queue and reviewer embeds now automatically update every 5 seconds
+- **Database Infrastructure**:
+  - New `persistent_embeds` table tracks all auto-updating embeds
+  - Stores message IDs, channel IDs, current page, last update time, and active status
+  - Added 6 new database methods for embed management
+- **New Cog: EmbedRefreshCog**:
+  - Background task runs continuously with 5-second refresh interval
+  - Rate limit protection: 500ms delay between individual embed updates
+  - Automatic error recovery and cleanup for deleted messages
+  - Status logging every minute showing active embed count and statistics
+  - Admin command `/refresh-stats` for real-time monitoring
+- **Enhanced LiveQueueCog & ReviewerCog**:
+  - Embeds automatically register for auto-refresh during setup
+  - Page state persists across bot restarts via database
+  - Pagination buttons work indefinitely with auto-refresh
+  - Setup commands now confirm "Auto-refresh enabled"
+- **Safety Features**:
+  - Staggered updates prevent Discord rate limits (max 50 edits/10s)
+  - Graceful failure handling with retry on next cycle
+  - Automatic deactivation of deleted embeds
+  - Delta checking infrastructure ready for content-based optimization
+- **Production Ready**: All embeds survive bot restarts and update continuously without manual intervention
+- Created comprehensive PERSISTENT_EMBEDS_IMPLEMENTATION.md documentation
+
 ## System Architecture
 
 ### UI/UX Decisions
