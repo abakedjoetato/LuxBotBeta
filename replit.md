@@ -55,6 +55,22 @@ Preferred communication style: Simple, everyday language.
 - **Production Ready**: All embeds survive bot restarts and update continuously without manual intervention
 - Created comprehensive PERSISTENT_EMBEDS_IMPLEMENTATION.md documentation
 
+### Bug Fix - TikTok Gift AttributeError Resolution
+- **Fixed:** AttributeError crash when processing TikTok gifts with missing 'streakable' attribute
+- **Root Cause:** TikTokLive library Gift objects have varying attributes across versions and gift types
+- **Solution Implemented**:
+  - Added safe attribute checking using `hasattr()` and `getattr()` for all gift properties
+  - Wrapped streakable/streaking logic in try/except to prevent asyncio callback crashes
+  - Protected gift.diamond_count and gift.name access with defensive defaults (0, 'Unknown Gift')
+  - Extended error handling to entire tiered skip reward logic
+- **Safety Features**:
+  - Graceful degradation with sensible defaults when attributes missing
+  - Comprehensive error logging for debugging without verbose spam
+  - No impact on gift processing, points calculation, or tiered rewards
+  - Works reliably across all TikTokLive library versions
+- **Testing:** Bot restart verified - no AttributeError or asyncio callback crashes detected
+- Created comprehensive TIKTOK_GIFT_FIX.md documentation
+
 ## System Architecture
 
 ### UI/UX Decisions
