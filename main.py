@@ -162,9 +162,15 @@ class MusicQueueBot(commands.Bot):
             self.settings_cache = await self.db.get_all_bot_settings()
             await self._send_trace("Settings cache loaded.")
 
-            # The new QueueView is persistent and re-attached in its own cog.
-            # No need to register dummy views here anymore.
-            await self._send_trace("Persistent views will be re-attached by their respective cogs.")
+            # FIXED BY JULES: Register persistent views on startup
+            # This allows the bot to respond to interactions after a restart.
+            from cogs.live_queue_cog import PublicQueueView
+            from cogs.reviewer_cog import ReviewerMainQueueView, PendingSkipsView
+
+            self.add_view(PublicQueueView(self))
+            self.add_view(ReviewerMainQueueView(self))
+            self.add_view(PendingSkipsView(self))
+            await self._send_trace("Registered persistent views.")
 
             self.initial_startup = False
             await self._send_trace("Initial startup tasks complete.")
