@@ -1,12 +1,27 @@
 # Discord Music Queue Bot
 
 ## Overview
-This Discord bot creates a TikTok-style music review queue with a **hybrid submission system**, enabling users to submit music via slash commands, modal forms, file uploads, OR simply by pasting links/uploading files in any channel (passive submission). It features interactive slash commands, modal forms, and real-time queue management across four priority-based queues (BackToBack, DoubleSkip, Skip, Free) and an archive. Administrators can manage submissions, and the system includes TikTok handle linking, persistent submission storage with resubmission capabilities, and points tracking. The bot integrates with TikTok Live for real-time status monitoring, comprehensive post-live session analytics for all TikTok handles, and automatic disconnect notifications. The advanced embed refresh system supports hundreds of entries with auto-updating displays every 10 seconds, persistent views, pagination, and enhanced rate-limit protection. The project aims to provide a dynamic platform for music discovery and review within Discord, leveraging TikTok's live interaction model and business vision to potentially create a new market for music engagement.
+This Discord bot creates a TikTok-style music review queue with a hybrid submission system. Users can submit music via slash commands, modal forms, file uploads, or passive submission (pasting links/uploading files in any channel). Key features include interactive slash commands, real-time queue management across four priority-based queues (BackToBack, DoubleSkip, Skip, Free), an archive, and administrator controls. It also supports TikTok handle linking, persistent submission storage with resubmission capabilities, points tracking, and integration with TikTok Live for status monitoring and post-live session analytics. The bot aims to provide a dynamic platform for music discovery and review, leveraging TikTok's live interaction model to foster music engagement.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
+
+### Critical Bug Fixes - TikTok Live Integration (October 10, 2025)
+- **Fixed Viewer Count Crash**: Changed from `self.bot.tiktok_client.viewer_count` to `event.viewer_count` in `on_viewer_update()` - viewer_count is an event property, not a client attribute
+- **Fixed Comment Processing TypeError**: Added intelligent error handling for TikTok API schema mismatches (nickName vs nick_name) - catches TypeError, logs detailed warning, uses fallback processing to preserve data
+- **Fixed End-of-Stream Summary Crash**: Added embed field length validation - truncates session summary table to 10 rows if exceeding Discord's 1024-character limit with clear "truncated to fit" message
+- **Location**: cogs/tiktok_cog.py lines 617, 510-560, 380-404
+
+### Enhancement - Advanced TikTok Live Monitoring (October 10, 2025)
+- **Viewer Count Validation**: Warns when viewer count is 0 (may indicate offline stream), logs info when viewers detected
+- **Join Event Confirmation**: Clear emoji-based logging (👋 JOIN EVENT) for all stream joins with handle capture confirmation
+- **Comment Event Monitoring**: Logs every comment with 💬 COMMENT EVENT showing username and content for visibility
+- **Schema Mismatch Detection**: Multi-line warning system (🔄 SCHEMA MISMATCH) with detailed error info, raw event data, and fallback status (✅ SUCCESS or ❌ FAILED)
+- **Connection Status**: Enhanced disconnect logging with 🔌 TIKTOK DISCONNECTED emoji for user-initiated disconnects
+- **Purpose**: Provides real-time diagnostics for the three critical TikTok integration failures, making debugging immediate and clear
+- **Location**: cogs/tiktok_cog.py lines 667-671, 570-573, 585-587, 531-560, 469
 
 ### Bug Fix - TikTok Commands & Rate Limiting (October 10, 2025)
 - **Fixed TikTok Slash Commands**: Restored `@app_commands.command` decorators (required for GroupCog) - `/tiktok connect`, `/tiktok status`, `/tiktok disconnect` now visible
@@ -97,28 +112,28 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### UI/UX Decisions
-- **Discord.py v2.x Framework**: Utilizes modern Discord bot features, including slash commands and interactive UI elements.
-- **Dual Submission Methods**: Supports modal forms for link submissions and attachment uploads for music files (MP3, WAV, M4A, FLAC up to 25MB).
+- **Discord.py v2.x Framework**: Utilizes modern Discord features like slash commands and interactive UI.
+- **Dual Submission Methods**: Supports modal forms for links and attachment uploads for audio files (MP3, WAV, M4A, FLAC up to 25MB).
 - **Real-time Embed Updates**: Pinned messages and queue displays auto-update dynamically.
 - **Enhanced Reviewer Display**: Provides detailed points breakdown with emoji decorations.
-- **Persistent Interactive Views**: All reviewer views and interactive elements maintain activity indefinitely.
-- **Post-Live Metrics Channel**: A dedicated channel for structured session analytics after each TikTok LIVE session, displaying all participants.
+- **Persistent Interactive Views**: Reviewer views and interactive elements maintain activity indefinitely.
+- **Post-Live Metrics Channel**: Dedicated channel for structured session analytics after each TikTok LIVE session.
 - **Disconnect Notifications**: Automatic alerts for unexpected TikTok stream disconnections.
-- **Hourly Points Backup**: Automated JSON backups of all user points and TikTok account points.
+- **Hourly Points Backup**: Automated JSON backups of user and TikTok account points.
 
 ### Technical Implementations
-- **Async/Await Pattern**: Implemented for non-blocking, concurrent operations.
-- **Cog-Based Organization**: Modular architecture separates concerns into distinct cogs.
+- **Async/Await Pattern**: For non-blocking, concurrent operations.
+- **Cog-Based Organization**: Modular architecture separating concerns.
 - **Lock-Based Concurrency**: `asyncio.Lock()` used to prevent race conditions.
 - **Enum-Based Queue Lines**: Type-safe definitions for queue priorities.
 - **TikTok Handle Autocomplete**: Suggestions for TikTok handles from existing database entries.
 - **Ephemeral Submission Confirmations**: Private messages for submission confirmations.
 - **Per-Handle Points Tracking**: Points tracked individually for each linked TikTok handle.
 - **Automatic Free Line Points Reset**: Points reset when a song from the FREE queue plays.
-- **Persistent TikTok Connection**: Intelligent retry logic for connecting to offline users.
+- **Persistent TikTok Connection**: Intelligent retry logic for connecting.
 - **Connection Status Command**: Provides real-time connection state, uptime, and session ID.
 - **Enhanced Disconnect Functionality**: Manages active connections and in-progress attempts.
-- **State Flag Management**: Uses `_user_initiated_disconnect` flag for accurate disconnect tracking.
+- **State Flag Management**: Uses `_user_initiated_disconnect` for accurate tracking.
 - **Defer-First Pattern**: All Discord interactions defer immediately to prevent "Unknown interaction" errors.
 - **Self-Healing Persistent View System**: Automates cleanup, reconnection, and verification of persistent view channels.
 
@@ -129,7 +144,7 @@ Preferred communication style: Simple, everyday language.
 - **Comprehensive Post-Live Metrics**: Tracks watch time, gift counts, coin values, likes, comments, and shares for all TikTok handles in an ASCII table, sorted by engagement.
 - **Enhanced Reset Points System**: Supports multiple modes for resetting points (specific users, all linked handles, global).
 - **Hourly Points Backup System**: Automatically creates timestamped JSON backups of user_points and tiktok_accounts data.
-- **Persistent Auto-Updating Embeds System**: All queue and reviewer embeds automatically update every 10 seconds with 1-second delays between updates to prevent rate limits, surviving bot restarts.
+- **Persistent Auto-Updating Embeds System**: All queue and reviewer embeds automatically update every 10 seconds with 1-second delays between updates, surviving bot restarts.
 
 ### System Design Choices
 - **Database Performance Optimizations**: Strategic indices and optimized queries for frequently accessed data.
