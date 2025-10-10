@@ -8,6 +8,32 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### Enhancement - Comprehensive TikTok Live Event Tracking (October 10, 2025)
+- **Expanded Event Coverage**: Now tracking ALL TikTok Live API events:
+  - Audience Interactions: Comments, Gifts, Likes, Shares, Follows, Joins, Subscriptions
+  - Stream Events: ConnectEvent, DisconnectEvent, LiveEndEvent, RoomUserSeqEvent (viewer counts)
+  - Host Actions: PollEvent, QuizEvent, MicBattleEvent
+- **Enhanced Database Schema**:
+  - Added `last_known_level` to tiktok_accounts table to track user levels
+  - Added `user_level` column to tiktok_interactions table
+  - Created `viewer_count_snapshots` table for tracking viewer counts over time
+- **Comprehensive Debug Logging**:
+  - All event handlers now log complete event data structures using vars(event)
+  - Added detailed logging for user levels, points, coins, and interaction values
+  - Performance tracking for all TikTok API interactions
+- **Enhanced Post-Live Metrics**:
+  - Table now displays user levels, follows, and subscribes
+  - Added viewer statistics (min/max/avg viewers)
+  - Shows all interaction types including polls, quizzes, and mic battles
+  - Updated query to include all new data points
+- **New Database Functions**:
+  - `log_viewer_count()` - Logs viewer count snapshots
+  - `update_tiktok_user_level()` - Updates user levels
+  - `get_session_viewer_stats()` - Retrieves viewer statistics
+  - Updated `log_tiktok_interaction()` to include user_level parameter
+  - Updated `get_session_all_handles_stats()` to return all new metrics
+- **Points System**: Subscriptions now award 25 points (highest value engagement)
+
 ### Feature - Hybrid Submission System (October 10, 2025)
 - **Added Passive Submission Listener**: Users can now submit music by simply uploading files or pasting links without using commands
 - **Supported Formats**:

@@ -61,7 +61,8 @@ class Database:
                         first_seen TIMESTAMPTZ DEFAULT NOW(),
                         last_seen TIMESTAMPTZ DEFAULT NOW(),
                         linked_discord_id BIGINT,
-                        points INTEGER DEFAULT 0 NOT NULL
+                        points INTEGER DEFAULT 0 NOT NULL,
+                        last_known_level INTEGER DEFAULT 0
                     );
                 """)
                 
@@ -77,6 +78,32 @@ class Database:
                         END IF;
                     END $$;
                 """)
+                
+                # Add last_known_level column if it doesn't exist (migration)
+                await conn.execute("""
+                    DO $$ 
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM information_schema.columns 
+                            WHERE table_name='tiktok_accounts' AND column_name='last_known_level'
+                        ) THEN
+                            ALTER TABLE tiktok_accounts ADD COLUMN last_known_level INTEGER DEFAULT 0;
+                        END IF;
+                    END $$;
+                """)
+                
+                # Add user_level column to tiktok_interactions if it doesn't exist (migration)
+                await conn.execute("""
+                    DO $$ 
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM information_schema.columns 
+                            WHERE table_name='tiktok_interactions' AND column_name='user_level'
+                        ) THEN
+                            ALTER TABLE tiktok_interactions ADD COLUMN user_level INTEGER;
+                        END IF;
+                    END $$;
+                """)
 
                 # tiktok_interactions for logging all interactions
                 await conn.execute("""
@@ -84,9 +111,20 @@ class Database:
                         id SERIAL PRIMARY KEY,
                         session_id INTEGER REFERENCES live_sessions(id) ON DELETE CASCADE,
                         tiktok_account_id INTEGER REFERENCES tiktok_accounts(handle_id) ON DELETE SET NULL,
-                        interaction_type TEXT NOT NULL, -- 'like', 'comment', 'share', 'gift', 'follow'
-                        value TEXT, -- e.g., comment text or gift name
+                        interaction_type TEXT NOT NULL, -- 'like', 'comment', 'share', 'gift', 'follow', 'subscribe', 'poll', 'quiz', 'mic_battle'
+                        value TEXT, -- e.g., comment text, gift name, poll/quiz/battle data
                         coin_value INTEGER,
+                        user_level INTEGER, -- User's level at time of interaction
+                        timestamp TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """)
+                
+                # viewer_count_snapshots for tracking viewer counts over time
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS viewer_count_snapshots (
+                        id SERIAL PRIMARY KEY,
+                        session_id INTEGER REFERENCES live_sessions(id) ON DELETE CASCADE,
+                        viewer_count INTEGER NOT NULL,
                         timestamp TIMESTAMPTZ DEFAULT NOW()
                     );
                 """)
@@ -399,11 +437,23 @@ class Database:
         async with self.pool.acquire() as conn:
             return await conn.fetchval(query, handle_name)
 
-    async def log_tiktok_interaction(self, session_id: int, tiktok_account_id: int, interaction_type: str, value: Optional[str] = None, coin_value: Optional[int] = None):
-        """Logs a single TikTok interaction."""
-        query = "INSERT INTO tiktok_interactions (session_id, tiktok_account_id, interaction_type, value, coin_value) VALUES ($1, $2, $3, $4, $5);"
+    async def log_tiktok_interaction(self, session_id: int, tiktok_account_id: int, interaction_type: str, value: Optional[str] = None, coin_value: Optional[int] = None, user_level: Optional[int] = None):
+        """Logs a single TikTok interaction with optional user level."""
+        query = "INSERT INTO tiktok_interactions (session_id, tiktok_account_id, interaction_type, value, coin_value, user_level) VALUES ($1, $2, $3, $4, $5, $6);"
         async with self.pool.acquire() as conn:
-            await conn.execute(query, session_id, tiktok_account_id, interaction_type, value, coin_value)
+            await conn.execute(query, session_id, tiktok_account_id, interaction_type, value, coin_value, user_level)
+    
+    async def log_viewer_count(self, session_id: int, viewer_count: int):
+        """Logs a viewer count snapshot."""
+        query = "INSERT INTO viewer_count_snapshots (session_id, viewer_count) VALUES ($1, $2);"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, session_id, viewer_count)
+    
+    async def update_tiktok_user_level(self, handle_name: str, level: int):
+        """Updates the last known level for a TikTok user."""
+        query = "UPDATE tiktok_accounts SET last_known_level = $1, last_seen = NOW() WHERE handle_name = $2;"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, level, handle_name)
 
     # FIXED BY Replit: TikTok handle validation and duplicate prevention - verified working
     # TEMPORARY: Handle existence check bypassed - accepts any handle
@@ -575,16 +625,23 @@ class Database:
         """
         Calculates per-handle interaction stats for ALL TikTok handles (linked and unlinked),
         sorted by total engagement points (coins descending, then interaction count descending).
+        Now includes subscriptions, follows, user levels, polls, quizzes, and mic battles.
         """
         query = """
             SELECT
                 ta.linked_discord_id,
                 ta.handle_name as tiktok_username,
+                ta.last_known_level as user_level,
                 SUM(CASE WHEN ti.interaction_type = 'like' THEN 1 ELSE 0 END) AS likes,
                 SUM(CASE WHEN ti.interaction_type = 'comment' THEN 1 ELSE 0 END) AS comments,
                 SUM(CASE WHEN ti.interaction_type = 'share' THEN 1 ELSE 0 END) AS shares,
+                SUM(CASE WHEN ti.interaction_type = 'follow' THEN 1 ELSE 0 END) AS follows,
+                SUM(CASE WHEN ti.interaction_type = 'subscribe' THEN 1 ELSE 0 END) AS subscribes,
                 SUM(CASE WHEN ti.interaction_type = 'gift' THEN 1 ELSE 0 END) AS gifts,
                 SUM(CASE WHEN ti.interaction_type = 'gift' THEN ti.coin_value ELSE 0 END) AS gift_coins,
+                SUM(CASE WHEN ti.interaction_type = 'poll' THEN 1 ELSE 0 END) AS polls,
+                SUM(CASE WHEN ti.interaction_type = 'quiz' THEN 1 ELSE 0 END) AS quizzes,
+                SUM(CASE WHEN ti.interaction_type = 'mic_battle' THEN 1 ELSE 0 END) AS mic_battles,
                 EXTRACT(EPOCH FROM (MAX(ti.timestamp) - MIN(ti.timestamp))) AS watch_time_seconds,
                 COUNT(ti.id) AS total_interactions
             FROM
@@ -594,7 +651,7 @@ class Database:
             WHERE
                 ti.session_id = $1
             GROUP BY
-                ta.linked_discord_id, ta.handle_name
+                ta.linked_discord_id, ta.handle_name, ta.last_known_level
             ORDER BY
                 SUM(CASE WHEN ti.interaction_type = 'gift' THEN ti.coin_value ELSE 0 END) DESC,
                 COUNT(ti.id) DESC;
@@ -602,6 +659,21 @@ class Database:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, session_id)
             return [dict(row) for row in rows]
+    
+    async def get_session_viewer_stats(self, session_id: int) -> Dict[str, Any]:
+        """Gets viewer count statistics for a session (min, max, avg)."""
+        query = """
+            SELECT
+                MIN(viewer_count) as min_viewers,
+                MAX(viewer_count) as max_viewers,
+                ROUND(AVG(viewer_count)) as avg_viewers,
+                COUNT(*) as snapshot_count
+            FROM viewer_count_snapshots
+            WHERE session_id = $1;
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query, session_id)
+            return dict(row) if row else {'min_viewers': 0, 'max_viewers': 0, 'avg_viewers': 0, 'snapshot_count': 0}
 
     async def get_session_submission_counts(self, session_id: int) -> Dict[int, int]:
         """

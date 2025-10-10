@@ -6,7 +6,11 @@ from discord.ext import commands, tasks
 from discord import app_commands
 from typing import Optional, Dict
 from TikTokLive import TikTokLiveClient
-from TikTokLive.events import CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, ShareEvent, FollowEvent, JoinEvent
+from TikTokLive.events import (
+    CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, 
+    ShareEvent, FollowEvent, JoinEvent, SubscribeEvent, LiveEndEvent,
+    RoomUserSeqEvent, PollEvent, QuizEvent, MicBattleEvent
+)
 from TikTokLive.client.errors import UserNotFoundError, UserOfflineError
 from database import QueueLine
 
@@ -25,6 +29,7 @@ INTERACTION_POINTS = {
     "comment": 2,
     "share": 5,
     "follow": 10,
+    "subscribe": 25,  # Subscriptions are high value
 }
 
 @app_commands.default_permissions(administrator=True)
@@ -145,6 +150,12 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
                 client.add_listener(ShareEvent, self.on_share)
                 client.add_listener(GiftEvent, self.on_gift)
                 client.add_listener(FollowEvent, self.on_follow)
+                client.add_listener(SubscribeEvent, self.on_subscribe)
+                client.add_listener(LiveEndEvent, self.on_live_end)
+                client.add_listener(RoomUserSeqEvent, self.on_viewer_update)
+                client.add_listener(PollEvent, self.on_poll)
+                client.add_listener(QuizEvent, self.on_quiz)
+                client.add_listener(MicBattleEvent, self.on_mic_battle)
                 self._connect_interaction = interaction
 
                 await edit_status("⏳ Connecting...", f"Status: Attempting connection to `@{clean_unique_id}`...", discord.Color.blue())
@@ -338,29 +349,24 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             color=discord.Color.blurple()
         )
         
-        # Add table header
+        # Add table header with new columns
         table_lines = [
             "```",
-            "TikTok Handle     | Linked To       | Watch | Likes | Cmts | Shares | Gifts | Coins",
-            "-" * 90
+            "TikTok Handle     | Lvl | Watch | Like | Cmt | Shr | Fol | Sub | Gft | Coins",
+            "-" * 85
         ]
         
         # Add handle rows (limit to 20 to fit Discord embed limits)
         for handle_data in all_handles_stats[:20]:
             tiktok_handle = handle_data['tiktok_username'][:17]
-            
-            # Show Discord username if linked, otherwise show "Unlinked"
-            linked_name = "Unlinked"
-            if handle_data['linked_discord_id']:
-                user = self.bot.get_user(handle_data['linked_discord_id'])
-                linked_name = user.display_name[:15] if user else f"ID:{handle_data['linked_discord_id']}"[:15]
-            
+            user_level = handle_data.get('user_level', 0) or 0
             watch_time = format_watch_time(handle_data.get('watch_time_seconds', 0))
             
             row = (
-                f"{tiktok_handle:<17} | {linked_name:<15} | {watch_time:<5} | "
-                f"{int(handle_data['likes']):<5} | {int(handle_data['comments']):<4} | "
-                f"{int(handle_data['shares']):<6} | {int(handle_data.get('gifts', 0)):<5} | {int(handle_data['gift_coins']):<5}"
+                f"{tiktok_handle:<17} | {user_level:<3} | {watch_time:<5} | "
+                f"{int(handle_data['likes']):<4} | {int(handle_data['comments']):<3} | "
+                f"{int(handle_data['shares']):<3} | {int(handle_data.get('follows', 0)):<3} | "
+                f"{int(handle_data.get('subscribes', 0)):<3} | {int(handle_data.get('gifts', 0)):<3} | {int(handle_data['gift_coins']):<5}"
             )
             table_lines.append(row)
         
@@ -375,13 +381,25 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             inline=False
         )
         
+        # Get viewer count statistics
+        viewer_stats = await self.bot.db.get_session_viewer_stats(self.current_session_id)
+        
         # Add overall session stats as fields
-        embed.add_field(name="Total Likes", value=f"{summary.get('like', 0):,}", inline=True)
-        embed.add_field(name="Total Comments", value=f"{summary.get('comment', 0):,}", inline=True)
-        embed.add_field(name="Total Shares", value=f"{summary.get('share', 0):,}", inline=True)
-        embed.add_field(name="Total Follows", value=f"{summary.get('follow', 0):,}", inline=True)
-        embed.add_field(name="Total Gifts", value=f"{summary.get('gift', 0):,}", inline=True)
-        embed.add_field(name="Total Coins", value=f"{summary.get('gift_coins', 0):,}", inline=True)
+        embed.add_field(name="👍 Likes", value=f"{summary.get('like', 0):,}", inline=True)
+        embed.add_field(name="💬 Comments", value=f"{summary.get('comment', 0):,}", inline=True)
+        embed.add_field(name="📣 Shares", value=f"{summary.get('share', 0):,}", inline=True)
+        embed.add_field(name="➕ Follows", value=f"{summary.get('follow', 0):,}", inline=True)
+        embed.add_field(name="⭐ Subscribes", value=f"{summary.get('subscribe', 0):,}", inline=True)
+        embed.add_field(name="🎁 Gifts", value=f"{summary.get('gift', 0):,}", inline=True)
+        embed.add_field(name="💎 Coins", value=f"{summary.get('gift_coins', 0):,}", inline=True)
+        
+        # Add viewer statistics if available
+        if viewer_stats['snapshot_count'] > 0:
+            embed.add_field(
+                name="👥 Viewers",
+                value=f"Peak: {viewer_stats['max_viewers']:,}\nAvg: {viewer_stats['avg_viewers']:,}\nMin: {viewer_stats['min_viewers']:,}",
+                inline=True
+            )
         
         embed.set_footer(text=f"Session ID: {self.current_session_id}")
         embed.timestamp = discord.utils.utcnow()
@@ -452,13 +470,31 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         await self._cleanup_connection()
 
     async def _handle_interaction(self, event, interaction_type: str, points: int, value: Optional[str] = None, coin_value: Optional[int] = None):
-        """Generic interaction logger and point awarder."""
+        """Generic interaction logger and point awarder with comprehensive debug logging."""
         if not self.current_session_id or not hasattr(event, 'user') or not hasattr(event.user, 'unique_id'):
             return
 
         try:
+            # Extract user level if available
+            user_level = None
+            if hasattr(event, 'user') and hasattr(event.user, 'badge'):
+                user_level = getattr(event.user.badge, 'level', None)
+            
+            # DEBUG: Log complete event data
+            logging.debug(f"TIKTOK EVENT DEBUG [{interaction_type.upper()}]:")
+            logging.debug(f"  User: {event.user.unique_id}")
+            logging.debug(f"  Level: {user_level}")
+            logging.debug(f"  Points: {points}")
+            logging.debug(f"  Value: {value}")
+            logging.debug(f"  Coins: {coin_value}")
+            logging.debug(f"  Full Event Data: {vars(event) if hasattr(event, '__dict__') else 'N/A'}")
+            
             tiktok_account_id = await self.bot.db.upsert_tiktok_account(event.user.unique_id)
-            await self.bot.db.log_tiktok_interaction(self.current_session_id, tiktok_account_id, interaction_type, value, coin_value)
+            await self.bot.db.log_tiktok_interaction(self.current_session_id, tiktok_account_id, interaction_type, value, coin_value, user_level)
+
+            # Update user level if available
+            if user_level is not None:
+                await self.bot.db.update_tiktok_user_level(event.user.unique_id, user_level)
 
             # Add points to TikTok handle directly (regardless of Discord link)
             await self.bot.db.add_points_to_tiktok_handle(event.user.unique_id, points)
@@ -467,6 +503,8 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             discord_id = await self.bot.db.get_discord_id_from_handle(event.user.unique_id)
             if discord_id:
                 await self.bot.db.add_points_to_user(discord_id, points)
+                
+            logging.info(f"TIKTOK: {interaction_type.capitalize()} from {event.user.unique_id} (Level {user_level}) - {points} points")
         except Exception as e:
             logging.error(f"Failed to handle TikTok interaction ({interaction_type}): {e}", exc_info=True)
 
@@ -553,6 +591,133 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
                     logging.error(f"Error processing tiered gift reward: {e}", exc_info=True)
         except Exception as e:
             logging.error(f"Error in tiered skip logic: {e}", exc_info=True)
+    
+    async def on_subscribe(self, event: SubscribeEvent):
+        """Handles user subscriptions to the streamer."""
+        logging.debug(f"TIKTOK EVENT DEBUG [SUBSCRIBE]:")
+        logging.debug(f"  Full Event Data: {vars(event) if hasattr(event, '__dict__') else 'N/A'}")
+        await self._handle_interaction(event, 'subscribe', INTERACTION_POINTS['subscribe'])
+    
+    async def on_live_end(self, event: LiveEndEvent):
+        """Handles the LiveEndEvent when the stream officially ends."""
+        logging.info("TIKTOK: LiveEndEvent received - stream officially ended")
+        logging.debug(f"TIKTOK EVENT DEBUG [LIVE_END]:")
+        logging.debug(f"  Full Event Data: {vars(event) if hasattr(event, '__dict__') else 'N/A'}")
+        # The disconnect handler will clean everything up
+    
+    async def on_viewer_update(self, event: RoomUserSeqEvent):
+        """Handles viewer count updates and logs them periodically."""
+        if not self.current_session_id:
+            return
+        
+        try:
+            viewer_count = self.bot.tiktok_client.viewer_count if self.bot.tiktok_client else 0
+            
+            # DEBUG: Log viewer count updates
+            logging.debug(f"TIKTOK EVENT DEBUG [VIEWER_UPDATE]:")
+            logging.debug(f"  Viewer Count: {viewer_count}")
+            logging.debug(f"  Full Event Data: {vars(event) if hasattr(event, '__dict__') else 'N/A'}")
+            
+            # Log viewer count snapshot to database
+            await self.bot.db.log_viewer_count(self.current_session_id, viewer_count)
+            logging.debug(f"TIKTOK: Viewer count update - {viewer_count} viewers")
+        except Exception as e:
+            logging.error(f"Failed to handle viewer update: {e}", exc_info=True)
+    
+    async def on_poll(self, event: PollEvent):
+        """Handles poll events from the stream."""
+        if not self.current_session_id:
+            return
+        
+        try:
+            # Extract poll data
+            poll_data = {
+                'question': getattr(event, 'question', 'Unknown'),
+                'options': getattr(event, 'options', []),
+                'duration': getattr(event, 'duration', 0)
+            }
+            
+            logging.info(f"TIKTOK: Poll started - {poll_data['question']}")
+            logging.debug(f"TIKTOK EVENT DEBUG [POLL]:")
+            logging.debug(f"  Question: {poll_data['question']}")
+            logging.debug(f"  Options: {poll_data['options']}")
+            logging.debug(f"  Full Event Data: {vars(event) if hasattr(event, '__dict__') else 'N/A'}")
+            
+            # Log as a special interaction (no specific user)
+            import json
+            if hasattr(event, 'user') and hasattr(event.user, 'unique_id'):
+                tiktok_account_id = await self.bot.db.upsert_tiktok_account(event.user.unique_id)
+                await self.bot.db.log_tiktok_interaction(
+                    self.current_session_id, 
+                    tiktok_account_id, 
+                    'poll', 
+                    json.dumps(poll_data)
+                )
+        except Exception as e:
+            logging.error(f"Failed to handle poll event: {e}", exc_info=True)
+    
+    async def on_quiz(self, event: QuizEvent):
+        """Handles quiz events from the stream."""
+        if not self.current_session_id:
+            return
+        
+        try:
+            # Extract quiz data
+            quiz_data = {
+                'question': getattr(event, 'question', 'Unknown'),
+                'answers': getattr(event, 'answers', []),
+                'duration': getattr(event, 'duration', 0)
+            }
+            
+            logging.info(f"TIKTOK: Quiz started - {quiz_data['question']}")
+            logging.debug(f"TIKTOK EVENT DEBUG [QUIZ]:")
+            logging.debug(f"  Question: {quiz_data['question']}")
+            logging.debug(f"  Answers: {quiz_data['answers']}")
+            logging.debug(f"  Full Event Data: {vars(event) if hasattr(event, '__dict__') else 'N/A'}")
+            
+            # Log as a special interaction
+            import json
+            if hasattr(event, 'user') and hasattr(event.user, 'unique_id'):
+                tiktok_account_id = await self.bot.db.upsert_tiktok_account(event.user.unique_id)
+                await self.bot.db.log_tiktok_interaction(
+                    self.current_session_id, 
+                    tiktok_account_id, 
+                    'quiz', 
+                    json.dumps(quiz_data)
+                )
+        except Exception as e:
+            logging.error(f"Failed to handle quiz event: {e}", exc_info=True)
+    
+    async def on_mic_battle(self, event: MicBattleEvent):
+        """Handles mic battle events from the stream."""
+        if not self.current_session_id:
+            return
+        
+        try:
+            # Extract battle data
+            battle_data = {
+                'battle_users': getattr(event, 'battle_users', []),
+                'status': getattr(event, 'status', 'unknown')
+            }
+            
+            logging.info(f"TIKTOK: Mic Battle event - Status: {battle_data['status']}")
+            logging.debug(f"TIKTOK EVENT DEBUG [MIC_BATTLE]:")
+            logging.debug(f"  Battle Users: {battle_data['battle_users']}")
+            logging.debug(f"  Status: {battle_data['status']}")
+            logging.debug(f"  Full Event Data: {vars(event) if hasattr(event, '__dict__') else 'N/A'}")
+            
+            # Log as a special interaction
+            import json
+            if hasattr(event, 'user') and hasattr(event.user, 'unique_id'):
+                tiktok_account_id = await self.bot.db.upsert_tiktok_account(event.user.unique_id)
+                await self.bot.db.log_tiktok_interaction(
+                    self.current_session_id, 
+                    tiktok_account_id, 
+                    'mic_battle', 
+                    json.dumps(battle_data)
+                )
+        except Exception as e:
+            logging.error(f"Failed to handle mic battle event: {e}", exc_info=True)
 
     # --- Background Tasks ---
     # FIXED BY Replit: Points tracking with periodic sync - verified working
