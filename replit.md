@@ -1,7 +1,7 @@
 # Discord Music Queue Bot
 
 ## Overview
-This Discord bot creates a TikTok-style music review queue with a **hybrid submission system**, enabling users to submit music via slash commands, modal forms, file uploads, OR simply by pasting links/uploading files in any channel (passive submission). It features interactive slash commands, modal forms, and real-time queue management across four priority-based queues (BackToBack, DoubleSkip, Skip, Free) and an archive. Administrators can manage submissions, and the system includes TikTok handle linking, persistent submission storage with resubmission capabilities, and points tracking. The bot integrates with TikTok Live for real-time status monitoring, comprehensive post-live session analytics for all TikTok handles, and automatic disconnect notifications. The advanced embed refresh system supports hundreds of entries with auto-updating displays every 5 seconds, persistent views, pagination, and rate-limit protection. The project aims to provide a dynamic platform for music discovery and review within Discord, leveraging TikTok's live interaction model and business vision to potentially create a new market for music engagement.
+This Discord bot creates a TikTok-style music review queue with a **hybrid submission system**, enabling users to submit music via slash commands, modal forms, file uploads, OR simply by pasting links/uploading files in any channel (passive submission). It features interactive slash commands, modal forms, and real-time queue management across four priority-based queues (BackToBack, DoubleSkip, Skip, Free) and an archive. Administrators can manage submissions, and the system includes TikTok handle linking, persistent submission storage with resubmission capabilities, and points tracking. The bot integrates with TikTok Live for real-time status monitoring, comprehensive post-live session analytics for all TikTok handles, and automatic disconnect notifications. The advanced embed refresh system supports hundreds of entries with auto-updating displays every 10 seconds, persistent views, pagination, and enhanced rate-limit protection. The project aims to provide a dynamic platform for music discovery and review within Discord, leveraging TikTok's live interaction model and business vision to potentially create a new market for music engagement.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -12,7 +12,7 @@ Preferred communication style: Simple, everyday language.
 - **Expanded Event Coverage**: Now tracking ALL TikTok Live API events:
   - Audience Interactions: Comments, Gifts, Likes, Shares, Follows, Joins, Subscriptions
   - Stream Events: ConnectEvent, DisconnectEvent, LiveEndEvent, RoomUserSeqEvent (viewer counts)
-  - Host Actions: PollEvent, QuizEvent, MicBattleEvent
+  - Host Actions: PollEvent, LinkMicBattleEvent
 - **Enhanced Database Schema**:
   - Added `last_known_level` to tiktok_accounts table to track user levels
   - Added `user_level` column to tiktok_interactions table
@@ -24,7 +24,7 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced Post-Live Metrics**:
   - Table now displays user levels, follows, and subscribes
   - Added viewer statistics (min/max/avg viewers)
-  - Shows all interaction types including polls, quizzes, and mic battles
+  - Shows all interaction types including polls and mic battles
   - Updated query to include all new data points
 - **New Database Functions**:
   - `log_viewer_count()` - Logs viewer count snapshots
@@ -121,7 +121,7 @@ Preferred communication style: Simple, everyday language.
 - **Comprehensive Post-Live Metrics**: Tracks watch time, gift counts, coin values, likes, comments, and shares for all TikTok handles in an ASCII table, sorted by engagement.
 - **Enhanced Reset Points System**: Supports multiple modes for resetting points (specific users, all linked handles, global).
 - **Hourly Points Backup System**: Automatically creates timestamped JSON backups of user_points and tiktok_accounts data.
-- **Persistent Auto-Updating Embeds System**: All queue and reviewer embeds automatically update every 5 seconds, surviving bot restarts.
+- **Persistent Auto-Updating Embeds System**: All queue and reviewer embeds automatically update every 10 seconds with 1-second delays between updates to prevent rate limits, surviving bot restarts.
 
 ### System Design Choices
 - **Database Performance Optimizations**: Strategic indices and optimized queries for frequently accessed data.

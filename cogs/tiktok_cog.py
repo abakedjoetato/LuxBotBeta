@@ -9,7 +9,7 @@ from TikTokLive import TikTokLiveClient
 from TikTokLive.events import (
     CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LikeEvent, 
     ShareEvent, FollowEvent, JoinEvent, SubscribeEvent, LiveEndEvent,
-    RoomUserSeqEvent, PollEvent, QuizEvent, MicBattleEvent
+    RoomUserSeqEvent, PollEvent, LinkMicBattleEvent
 )
 from TikTokLive.client.errors import UserNotFoundError, UserOfflineError
 from database import QueueLine
@@ -54,7 +54,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         super().__init__()
 
     # FIXED BY JULES
-    def cog_unload(self):
+    async def cog_unload(self):
         """Clean up resources when the cog is unloaded."""
         self.score_sync_task.cancel()
         self.points_backup_task.cancel()  # FIXED BY JULES: Cancel backup task on unload
@@ -154,8 +154,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
                 client.add_listener(LiveEndEvent, self.on_live_end)
                 client.add_listener(RoomUserSeqEvent, self.on_viewer_update)
                 client.add_listener(PollEvent, self.on_poll)
-                client.add_listener(QuizEvent, self.on_quiz)
-                client.add_listener(MicBattleEvent, self.on_mic_battle)
+                client.add_listener(LinkMicBattleEvent, self.on_mic_battle)
                 self._connect_interaction = interaction
 
                 await edit_status("⏳ Connecting...", f"Status: Attempting connection to `@{clean_unique_id}`...", discord.Color.blue())
@@ -656,39 +655,7 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         except Exception as e:
             logging.error(f"Failed to handle poll event: {e}", exc_info=True)
     
-    async def on_quiz(self, event: QuizEvent):
-        """Handles quiz events from the stream."""
-        if not self.current_session_id:
-            return
-        
-        try:
-            # Extract quiz data
-            quiz_data = {
-                'question': getattr(event, 'question', 'Unknown'),
-                'answers': getattr(event, 'answers', []),
-                'duration': getattr(event, 'duration', 0)
-            }
-            
-            logging.info(f"TIKTOK: Quiz started - {quiz_data['question']}")
-            logging.debug(f"TIKTOK EVENT DEBUG [QUIZ]:")
-            logging.debug(f"  Question: {quiz_data['question']}")
-            logging.debug(f"  Answers: {quiz_data['answers']}")
-            logging.debug(f"  Full Event Data: {vars(event) if hasattr(event, '__dict__') else 'N/A'}")
-            
-            # Log as a special interaction
-            import json
-            if hasattr(event, 'user') and hasattr(event.user, 'unique_id'):
-                tiktok_account_id = await self.bot.db.upsert_tiktok_account(event.user.unique_id)
-                await self.bot.db.log_tiktok_interaction(
-                    self.current_session_id, 
-                    tiktok_account_id, 
-                    'quiz', 
-                    json.dumps(quiz_data)
-                )
-        except Exception as e:
-            logging.error(f"Failed to handle quiz event: {e}", exc_info=True)
-    
-    async def on_mic_battle(self, event: MicBattleEvent):
+    async def on_mic_battle(self, event: LinkMicBattleEvent):
         """Handles mic battle events from the stream."""
         if not self.current_session_id:
             return

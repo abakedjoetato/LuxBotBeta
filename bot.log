@@ -2289,3 +2289,41 @@ discord.app_commands.errors.CommandInvokeError: Command 'remove' raised an excep
 2025-10-10 01:14:57,577:INFO:root: ✅ Re-registered ReviewerCog views
 2025-10-10 01:14:57,577:INFO:root: ✅ Re-registered SubmissionCog views
 2025-10-10 01:14:57,577:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).
+2025-10-10 01:31:10,126:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-10 01:31:10,126:INFO:discord.client: logging in using static token
+2025-10-10 01:31:10,722:INFO:root: Database pool created.
+2025-10-10 01:31:10,762:INFO:root: Database initialized successfully.
+2025-10-10 01:31:10,766:INFO:root: PassiveSubmissionCog loaded successfully.
+2025-10-10 01:31:11,820:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-10 01:31:11,827:INFO:root: SelfHealingCog loaded.
+2025-10-10 01:31:11,831:INFO:root: EmbedRefreshCog loaded. Starting auto-refresh loop...
+2025-10-10 01:31:12,443:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: 8c91cdeaba76998cb04bc9b657efe883).
+2025-10-10 01:31:14,445:INFO:root: ✅ Auto-refresh loop ready to start.
+2025-10-10 01:31:14,446:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-10 01:31:14,446:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-10 01:31:14,452:INFO:root: Points backup completed: 1 users, 0 TikTok handles
+2025-10-10 01:31:17,618:ERROR:root: ❌ Live Queue Channel: Missing permissions to access channel
+2025-10-10 01:31:17,822:ERROR:root: ❌ Metrics Channel: Missing permissions to access channel
+2025-10-10 01:31:17,822:INFO:root: ✅ Re-registered LiveQueueCog views
+2025-10-10 01:31:17,823:INFO:root: ✅ Re-registered ReviewerCog views
+2025-10-10 01:31:17,823:INFO:root: ✅ Re-registered SubmissionCog views
+2025-10-10 01:31:17,823:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).
+2025-10-10 01:33:08,320:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-10 01:33:08,320:INFO:discord.client: logging in using static token
+2025-10-10 01:33:08,742:INFO:root: Database pool created.
+2025-10-10 01:33:08,818:INFO:root: Database initialized successfully.
+2025-10-10 01:33:08,822:INFO:root: PassiveSubmissionCog loaded successfully.
+2025-10-10 01:33:09,812:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-10 01:33:09,817:INFO:root: SelfHealingCog loaded.
+2025-10-10 01:33:09,818:INFO:root: EmbedRefreshCog loaded. Starting auto-refresh loop...
+2025-10-10 01:33:10,423:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: 315c72a7c47d7140874f350c9d08cd6c).
+2025-10-10 01:33:12,425:INFO:root: ✅ Auto-refresh loop ready to start.
+2025-10-10 01:33:12,426:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-10 01:33:12,426:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-10 01:33:12,430:INFO:root: Points backup completed: 1 users, 0 TikTok handles
+2025-10-10 01:33:15,592:ERROR:root: ❌ Live Queue Channel: Missing permissions to access channel
+2025-10-10 01:33:15,772:ERROR:root: ❌ Metrics Channel: Missing permissions to access channel
+2025-10-10 01:33:15,772:INFO:root: ✅ Re-registered LiveQueueCog views
+2025-10-10 01:33:15,772:INFO:root: ✅ Re-registered ReviewerCog views
+2025-10-10 01:33:15,773:INFO:root: ✅ Re-registered SubmissionCog views
+2025-10-10 01:33:15,773:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).

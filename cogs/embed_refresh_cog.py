@@ -1,5 +1,5 @@
 """
-Embed Refresh Cog - Auto-updates all persistent embeds every 5 seconds.
+Embed Refresh Cog - Auto-updates all persistent embeds every 10 seconds.
 Implements rate limit protection and delta checking for performance.
 """
 
@@ -13,14 +13,14 @@ from datetime import datetime, timedelta
 
 
 class EmbedRefreshCog(commands.Cog):
-    """Cog for auto-refreshing persistent embeds every 5 seconds."""
+    """Cog for auto-refreshing persistent embeds every 10 seconds."""
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.refresh_count = 0
         self.error_count = 0
         self.last_status_log = datetime.utcnow()
-        self.rate_limit_delay = 0.5  # 500ms between embed updates
+        self.rate_limit_delay = 1.0  # 1 second between embed updates to prevent rate limits
         
     async def cog_load(self):
         """Start the auto-refresh loop when the cog loads."""
@@ -32,9 +32,9 @@ class EmbedRefreshCog(commands.Cog):
         self.auto_refresh_loop.cancel()
         logging.info("EmbedRefreshCog unloaded. Auto-refresh loop stopped.")
     
-    @tasks.loop(seconds=5)
+    @tasks.loop(seconds=10)
     async def auto_refresh_loop(self):
-        """Main auto-refresh loop that runs every 5 seconds."""
+        """Main auto-refresh loop that runs every 10 seconds."""
         try:
             active_embeds = await self.bot.db.get_all_active_persistent_embeds()
             
