@@ -8,6 +8,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### Bug Fix - TikTok Commands & Rate Limiting (October 10, 2025)
+- **Fixed TikTok Slash Commands**: Restored `@app_commands.command` decorators (required for GroupCog) - `/tiktok connect`, `/tiktok status`, `/tiktok disconnect` now visible
+- **Fixed Non-Existent Event Imports**: Removed `QuizEvent` and `MicBattleEvent` (don't exist in TikTokLive), replaced with `LinkMicBattleEvent`
+- **Removed Invalid Handler**: Deleted `on_quiz()` handler since QuizEvent doesn't exist in the library
+- **Fixed async cog_unload**: Made async to match parent class signature
+- **Rate Limiting Prevention**: Slowed embed refresh from 5 seconds to 10 seconds, increased delay between embeds from 500ms to 1 second to prevent Discord API 429 errors
+- **Updated Documentation**: All references updated to reflect 10-second refresh interval
+
 ### Enhancement - Comprehensive TikTok Live Event Tracking (October 10, 2025)
 - **Expanded Event Coverage**: Now tracking ALL TikTok Live API events:
   - Audience Interactions: Comments, Gifts, Likes, Shares, Follows, Joins, Subscriptions
