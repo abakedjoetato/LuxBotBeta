@@ -1,0 +1,126 @@
+Upgrade the bot’s submission and queue systems while keeping full backward compatibility. 
+Add a new passive submission method and replace the current embed refresh system with 
+an optimized, high-capacity, rate-limit-safe solution that automatically updates and displays 
+hundreds of entries accurately. --- 
+�
+�
+ Part 1: Hybrid Submission System 
+Requirements: 
+1. The existing submission command system must continue functioning exactly as before — 
+no behavioral changes, no removed features, no regression. 
+2. Add a new passive submission listener that allows users to submit songs directly by 
+either: 
+Uploading a valid audio file (.mp3 or .m4a) 
+Pasting a valid music link (SoundCloud, Spotify, YouTube, Deezer, or Ditto Music) 
+3. When a submission is made this way: 
+The artist name is set to the user’s Discord display name. 
+The song title defaults to "Not Known". 
+The submission is inserted into the same database, queue, and point system as a standard 
+submission. 
+4. After submission: 
+The bot sends an ephemeral confirmation message: 
+"
+ ✅
+ Submission received and added to the queue!" 
+Followed by: 
+"
+ 💡
+ Tip: Link your TikTok handle using /link-tiktok for added benefits and points tracking." 
+5. Validation rules remain strict: 
+Only accept .mp3 or .m4a files. 
+Only accept links from recognized music sources: 
+soundcloud.com, spotify.com, youtube.com, youtu.be, deezer.com, dittomusic.com 
+Reject Apple Music, iTunes, and all unrecognized domains. 
+Invalid submissions trigger an ephemeral rejection message: 
+"
+ ❌
+ Invalid file or unsupported link. Please use a .mp3/.m4a file or a recognized music 
+platform link." 
+6. Store the submission under the user’s Discord ID, and if they have a linked TikTok handle, 
+associate it automatically. 
+7. If the user doesn’t have a linked TikTok handle, include a follow-up message (ephemeral) 
+explaining how to link it: "
+ 🔗
+ You can link your TikTok handle anytime using /link-tiktok to 
+earn points and track submissions." --- 
+�
+�
+ Part 2: Advanced Embed System (Scalable, Persistent, Auto-Updating) 
+Goal: 
+Replace the existing embeds for queues and reviewer panels with a high-performance, 
+auto-refreshing system capable of displaying hundreds of submissions without expiring or 
+manually refreshing — while staying within Discord’s rate limits. 
+Requirements: 
+1. Embed Persistence & Refresh 
+All queue and reviewer embeds must: 
+Never expire. 
+Stay live and reflect all new submissions or updates automatically. 
+Support up to hundreds of entries efficiently. 
+Refresh automatically every few seconds without triggering Discord rate limits. 
+Recommended interval: every 5–10 seconds, adjusted dynamically based on queue activity. 
+2. Embed Type / Architecture 
+Replace old embeds with message component views or modular paginated embeds using 
+Discord’s modern UI toolkit (discord.ui.View, persistent components, or equivalent depending 
+on library). 
+Use pagination controls that do not expire (timeout=None). 
+The system should intelligently update only modified pages, minimizing API calls. 
+3. Reviewer Panel 
+Displays detailed per-song info including: 
+Artist name 
+Song title 
+Source platform (with emoji indicator 
+�
+�
+ 
+▶
+ 
+�
+�
+ 
+�
+�
+ ) 
+Points and their origin (
+ 💬
+ comments, 
+❤
+ likes, 
+�
+�
+ coins, 
+�
+�
+ shares) 
+The reviewer panel should auto-refresh with live stats and not require manual reloads. 
+4. Public Queue Embed 
+Displays all active submissions in paginated form. 
+Shows new entries as they arrive without manual refresh. 
+Efficiently caches prior pages to avoid redundant API calls. 
+5. Performance Optimization 
+Implement an intelligent scheduler or background loop to manage refresh intervals. 
+Batch updates to avoid frequent full-message edits. 
+Use Discord’s rate-limit headers to dynamically adjust refresh frequency. 
+6. Fail-Safe & Restart Recovery 
+Embeds and their view states must persist across bot restarts. 
+Reinitialize active embeds from cached data or DB on startup. --- 
+�
+�
+ Technical Implementation Guidance 
+Use discord.py v2.4+ or a similar modern library supporting persistent views. 
+For scalable updates: 
+Consider message component caching and differential updating (edit only changed 
+fields/pages). 
+Maintain a refresh scheduler that groups embed updates (asyncio tasks or a background 
+service). 
+The update system should always respect Discord’s global rate limit of 50 edits per second 
+per bot. 
+Use local or Redis-based caching for queue state to minimize DB hits per refresh. 
+Persist queue messages with their Discord message IDs for accurate editing rather than 
+deletion/reposting. --- 
+✅
+ End Result 
+Users can now submit songs effortlessly via upload or link, with immediate ephemeral 
+confirmation and instructions. 
+The old system remains untouched and fully functional. 
+The queues and reviewer panels are self-updating, unbreakable, and scalable — capable of 
+handling hundreds of live submissions without lag, manual refreshes, or expired embeds.

@@ -68,6 +68,7 @@ class MusicQueueBot(commands.Bot):
         await self._send_trace("Loading cogs...")
         cogs_to_load = [
             'cogs.submission_cog',
+            'cogs.passive_submission_cog',
             'cogs.admin_cog', 'cogs.tiktok_cog',
             'cogs.user_cog', 'cogs.live_queue_cog', 'cogs.reviewer_cog', 'cogs.debug_cog',
             'cogs.self_healing_cog', 'cogs.embed_refresh_cog'
