@@ -374,9 +374,29 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         if len(all_handles_stats) > 20:
             table_lines.append(f"\n*...and {len(all_handles_stats) - 20} more participant(s)*")
         
+        # Join table lines and check length
+        table_content = "\n".join(table_lines)
+        
+        # Discord embed field value limit is 1024 characters
+        if len(table_content) > 1024:
+            # Truncate the table to fit within limit
+            lines_to_keep = table_lines[:3]  # Keep header and separator
+            max_data_rows = 10  # Limit to 10 data rows
+            
+            for i, line in enumerate(table_lines[3:], start=3):
+                if i >= 3 + max_data_rows:
+                    break
+                if len("\n".join(lines_to_keep + [line] + ["```"])) > 1000:
+                    break
+                lines_to_keep.append(line)
+            
+            lines_to_keep.append("```")
+            lines_to_keep.append(f"\n*...showing {len(lines_to_keep) - 4} of {len(all_handles_stats)} participants (truncated to fit)*")
+            table_content = "\n".join(lines_to_keep)
+        
         embed.add_field(
             name="User Interaction Metrics",
-            value="\n".join(table_lines),
+            value=table_content,
             inline=False
         )
         
@@ -504,6 +524,33 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
                 await self.bot.db.add_points_to_user(discord_id, points)
                 
             logging.info(f"TIKTOK: {interaction_type.capitalize()} from {event.user.unique_id} (Level {user_level}) - {points} points")
+        except TypeError as e:
+            # Handle nickName vs nick_name mismatch from TikTok API
+            if 'nickName' in str(e) or 'nick_name' in str(e):
+                logging.warning(f"TikTok API user data format mismatch (nickName vs nick_name): {e}")
+                logging.warning(f"Event user data: {vars(event.user) if hasattr(event, 'user') and hasattr(event.user, '__dict__') else 'N/A'}")
+                # Continue processing with whatever data we can extract
+                try:
+                    unique_id = getattr(event.user, 'unique_id', None) if hasattr(event, 'user') else None
+                    if unique_id:
+                        tiktok_account_id = await self.bot.db.upsert_tiktok_account(unique_id)
+                        await self.bot.db.log_tiktok_interaction(
+                            self.current_session_id, 
+                            tiktok_account_id, 
+                            interaction_type, 
+                            value, 
+                            coin_value,
+                            None  # user_level
+                        )
+                        await self.bot.db.add_points_to_tiktok_handle(unique_id, points)
+                        discord_id = await self.bot.db.get_discord_id_from_handle(unique_id)
+                        if discord_id:
+                            await self.bot.db.add_points_to_user(discord_id, points)
+                        logging.info(f"TIKTOK: {interaction_type.capitalize()} from {unique_id} (fallback processing) - {points} points")
+                except Exception as fallback_error:
+                    logging.error(f"Fallback processing also failed for {interaction_type}: {fallback_error}", exc_info=True)
+            else:
+                logging.error(f"Failed to handle TikTok interaction ({interaction_type}): {e}", exc_info=True)
         except Exception as e:
             logging.error(f"Failed to handle TikTok interaction ({interaction_type}): {e}", exc_info=True)
 
@@ -610,7 +657,8 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
             return
         
         try:
-            viewer_count = self.bot.tiktok_client.viewer_count if self.bot.tiktok_client else 0
+            # Get viewer count from the event itself
+            viewer_count = getattr(event, 'viewer_count', 0)
             
             # DEBUG: Log viewer count updates
             logging.debug(f"TIKTOK EVENT DEBUG [VIEWER_UPDATE]:")
