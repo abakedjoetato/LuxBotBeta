@@ -1,0 +1,56 @@
+Discord Bot - TikTok Live Integration Bug Report
+Here is a summary of the critical issues identified from the deployment logs dated 2025-10-10. These issues are causing instability and feature failures in the bot's interaction with the TikTok Live API.
+
+Issue 1: Crash When Handling TikTok Comments
+What's Happening:
+The bot is crashing whenever it tries to process a new comment from the TikTok Live chat. This means any features related to comment interactions (e.g., tracking points, responding to keywords) are completely broken.
+
+Technical Details:
+
+Error: TypeError: User.__init__() got an unexpected keyword argument 'nickName'. Did you mean 'nick_name'?
+
+Location: The error is triggered in our code within the on_comment event handler in /app/cogs/tiktok_cog.py at line 526, which calls the _handle_interaction function.
+
+Root Cause: The unofficial TikTok API library is receiving user data from TikTok with a field named nickName (in camelCase). However, the library's internal code expects the field to be nick_name (in snake_case). This mismatch causes a TypeError when the library tries to create a user object, crashing the comment processing task.
+
+Suggested Action:
+
+Investigate the TikTokLive library version. An update may have resolved this naming mismatch.
+
+If no update is available, the team may need to implement a temporary fix by intercepting the event data and manually renaming the nickName key to nick_name before the library processes it.
+
+Issue 2: Failure to Update Live Viewer Count
+What's Happening:
+The bot consistently fails to retrieve or update the viewer count for the live stream. This will cause any display panels, logs, or commands that rely on showing the current number of viewers to be inaccurate or show 0.
+
+Technical Details:
+
+Error: AttributeError: 'TikTokLiveClient' object has no attribute 'viewer_count'
+
+Location: The error occurs in /app/cogs/tiktok_cog.py at line 613, inside the on_viewer_update event handler.
+
+Root Cause: The code attempts to access self.bot.tiktok_client.viewer_count, but this attribute no longer exists on the TikTokLiveClient object provided by the API library. The library has likely been updated, and the method for accessing the viewer count has been changed or renamed.
+
+Suggested Action:
+
+Consult the documentation for the currently installed version of the TikTokLive Python library to find the new, correct attribute or method for fetching the viewer count (e.g., it might have changed to client.room_info.viewer_count or a similar structure).
+
+Update the code in tiktok_cog.py to use the correct attribute.
+
+Issue 3: End-of-Stream Summary Fails to Post
+What's Happening:
+When a TikTok Live stream ends, the bot tries to post a summary message in Discord, but this action fails. As a result, no post-stream recap is being sent to the designated channel.
+
+Technical Details:
+
+Error: discord.errors.HTTPException: 400 Bad Request (error code: 50035): Invalid Form Body. In embeds.0.fields.0.value: Must be 1024 or fewer in length.
+
+Location: This error occurs in /app/cogs/tiktok_cog.py at line 407, within the _post_live_summary function.
+
+Root Cause: The bot gathers data during the stream (e.g., top commenters, gifters, etc.) to create a summary embed. The content for one of the embed's fields has exceeded Discord's maximum character limit of 1024 characters.
+
+Suggested Action:
+
+Implement logic in the _post_live_summary function to check the length of each embed field value before sending the request.
+
+If a field's value is too long, truncate it with an ellipsis (...) or split the summary across multiple embeds/messages to ensure it respects Discord's API limits.
