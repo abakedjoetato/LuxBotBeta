@@ -1,0 +1,83 @@
+## Summary
+The TikTok integration is experiencing multiple critical failures during live sessions. The primary issue is a recurring TypeError that causes all incoming comments to be ignored. Additionally, the live viewer count is not being displayed correctly, showing "0" despite the stream being active, and individual user join/leave events are not being logged, creating a gap in analytics. Analysis of the logs indicates that while Follow (subscriber), Like, Share, and Gift events are being processed correctly, the comment, viewer count, and join/leave event functionalities are broken or missing.
+
+## Identified Issues
+Based on the logs, there are three distinct bugs or feature gaps.
+
+🐛 Issue 1: [Critical] Comment Processing Fails Due to TypeError
+This is the most critical issue. The application is unable to process any comments from the TikTok live stream.
+
+Symptom: No comments are detected or logged by the bot. All comment-based interactions fail.
+
+Root Cause: The logs show a repeating traceback originating from the on_comment event handler. The error is a TypeError because the TikTok API data is providing a user object with a nickName field (using camelCase). The Python library's User class expects this argument to be nick_name (using snake_case). This mismatch causes the function to crash every time a comment is received.
+
+Relevant Log Snippet (Repeated throughout the logs):
+
+Traceback (most recent call last):
+  File "/app/cogs/tiktok_cog.py", line 573, in on_comment
+    await self._handle_interaction(event, 'comment', ...)
+  File "/app/.venv/lib/python3.13/site-packages/TikTokLive/proto/custom_proto.py", line 59, in from_user
+    return ExtendedUser(**user.to_pydict(**kwargs))
+TypeError: User.__init__() got an unexpected keyword argument 'nickName'. Did you mean 'nick_name'?
+🐛 Issue 2: [Medium] Live Viewer Count Displays as Zero
+The viewer count, a key metric for live stream status, is non-functional.
+
+Symptom: The viewer count consistently displays as "0" in the Discord embed.
+
+Root Cause: The exact cause is not identified by an error in the logs. The Auto-Refresh Status log indicates that the embed is being updated without errors (📊 Auto-Refresh Status: 1 active embeds | 27 total refreshes | 0 errors), which suggests the problem lies in the data being fetched. The issue is likely one of the following:
+
+The API endpoint for viewer count is incorrect or has changed.
+
+The application is failing to parse the viewer count from the API response correctly.
+
+The API is genuinely returning a value of 0.
+
+🐛 Issue 3: [Low] Join and Leave Events Are Not Being Logged
+There is a logging and feature gap, as the bot does not record when individual users join or leave the live stream.
+
+Symptom: The logs show no record of specific users entering or exiting the TikTok Live session. The only connection events logged are for the bot itself.
+
+Root Cause: This is likely not an error, but a missing feature. The cause is one of two possibilities:
+
+The event handlers for on_join or on_leave (or equivalent) have not been implemented in the application's code.
+
+The TikTokLive library being used is not configured to listen for or emit these specific events.
+
+## Feature Analysis (Working as Expected)
+Subscriber (Follower) Tracking: Your suspicion that this might be broken is incorrect. The logs confirm that Follow events are being successfully processed.
+
+Log Evidence:
+
+2025-10-10 02:16:37,832:INFO:root: TIKTOK: Follow from andi.4198 (Level None) - 10 points
+2025-10-10 02:17:39,435:INFO:root: TIKTOK: Follow from rachellovesape4 (Level None) - 10 points
+Other Interactions: Likes, gifts, and shares are also being logged correctly without errors.
+
+## Steps to Reproduce
+Initiate the bot to monitor a TikTok live stream.
+
+Post one or more comments in the TikTok chat during the stream.
+
+Have a user join or leave the stream.
+
+Observe the application logs and note the TypeError for each comment and the absence of any join/leave log entries.
+
+Check the bot's Discord embed and observe that the viewer count remains at 0.
+
+## Recommended Next Steps
+Fix the Comment TypeError:
+
+The quickest solution is to find the code that calls User.__init__() (likely in TikTokLive/proto/custom_proto.py) and manually map the incoming nickName key to the expected nick_name argument.
+
+Alternatively, check for an update to the TikTokLive library that may have already patched this API change.
+
+Diagnose the Viewer Count Issue:
+
+Add logging to the function responsible for fetching room/stream data from the TikTok API.
+
+Log the full raw response from the API to verify if the viewer count is present and what its value is. This will determine if the bug is in our code or if TikTok is providing bad data.
+
+Implement Join/Leave Event Logging:
+
+Review the TikTokLive library documentation to confirm if it supports join/leave events.
+
+If supported, implement the necessary on_join and on_leave event handlers in the bot's code to log these activities.
