@@ -2195,3 +2195,22 @@ Traceback (most recent call last):
   File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/discord/app_commands/commands.py", line 877, in _do_call
     raise CommandInvokeError(self, e) from e
 discord.app_commands.errors.CommandInvokeError: Command 'remove' raised an exception: NotFound: 404 Not Found (error code: 10062): Unknown interaction
+2025-10-10 00:02:52,017:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-10-10 00:02:52,017:INFO:discord.client: logging in using static token
+2025-10-10 00:02:53,800:INFO:root: Database pool created.
+2025-10-10 00:02:53,927:INFO:root: Database initialized successfully.
+2025-10-10 00:02:53,935:INFO:root: PassiveSubmissionCog loaded successfully.
+2025-10-10 00:02:55,058:INFO:root: --- TikTokCog IS BEING INITIALIZED ---
+2025-10-10 00:02:55,179:INFO:root: SelfHealingCog loaded.
+2025-10-10 00:02:55,184:INFO:root: EmbedRefreshCog loaded. Starting auto-refresh loop...
+2025-10-10 00:02:57,832:INFO:discord.gateway: Shard ID None has connected to Gateway (Session ID: 0b55bd50b5b7b079ce6200f59a46462b).
+2025-10-10 00:02:59,837:INFO:root: ✅ Auto-refresh loop ready to start.
+2025-10-10 00:02:59,838:INFO:root: SelfHealingCog ready. Starting auto-healing sequence...
+2025-10-10 00:02:59,838:INFO:root: 🏥 Starting auto-healing sequence...
+2025-10-10 00:02:59,874:INFO:root: Points backup completed: 1 users, 0 TikTok handles
+2025-10-10 00:03:03,051:ERROR:root: ❌ Live Queue Channel: Missing permissions to access channel
+2025-10-10 00:03:03,207:ERROR:root: ❌ Metrics Channel: Missing permissions to access channel
+2025-10-10 00:03:03,207:INFO:root: ✅ Re-registered LiveQueueCog views
+2025-10-10 00:03:03,208:INFO:root: ✅ Re-registered ReviewerCog views
+2025-10-10 00:03:03,208:INFO:root: ✅ Re-registered SubmissionCog views
+2025-10-10 00:03:03,208:INFO:root: ✅ Auto-healing sequence completed successfully (views re-registered).
