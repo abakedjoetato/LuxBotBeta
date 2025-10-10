@@ -50,21 +50,45 @@ class PassiveSubmissionCog(commands.Cog):
         if message.content.startswith('/'):
             return
         
+        # Check for unsupported audio file attachments first
+        unsupported_audio = self._check_unsupported_audio(message)
+        if unsupported_audio:
+            try:
+                await message.author.send(
+                    f"❌ **Unsupported audio format detected: {unsupported_audio}**\n"
+                    "Please use a `.mp3` or `.m4a` file (max 25MB).\n\n"
+                    "Other formats like `.wav`, `.flac`, `.ogg` are not supported."
+                )
+            except discord.Forbidden:
+                # User has DMs disabled, reply in channel
+                await message.reply(
+                    "❌ Unsupported audio format. Please use `.mp3` or `.m4a` files only.",
+                    delete_after=10
+                )
+            return
+        
         # Check for audio file attachments
         audio_file = self._get_audio_attachment(message)
         if audio_file:
             await self._process_passive_file_submission(message, audio_file)
             return
         
-        # Check for rejected music links first
+        # Check for rejected music links
         rejected_link = self._check_rejected_link(message.content)
         if rejected_link:
-            await message.reply(
-                "❌ **Invalid file or unsupported link.**\n"
-                "Please use a `.mp3` or `.m4a` file, or a recognized music platform link:\n"
-                "✅ SoundCloud, Spotify, YouTube, Deezer, Ditto Music",
-                delete_after=15
-            )
+            try:
+                await message.author.send(
+                    "❌ **Unsupported music platform detected.**\n"
+                    "Apple Music and iTunes links are not supported.\n\n"
+                    "Please use one of these platforms:\n"
+                    "✅ SoundCloud, Spotify, YouTube, Deezer, Ditto Music"
+                )
+            except discord.Forbidden:
+                # User has DMs disabled, reply in channel
+                await message.reply(
+                    "❌ Unsupported link. Please use SoundCloud, Spotify, YouTube, Deezer, or Ditto Music.",
+                    delete_after=10
+                )
             return
         
         # Check for music links
@@ -72,6 +96,32 @@ class PassiveSubmissionCog(commands.Cog):
         if music_link:
             await self._process_passive_link_submission(message, music_link)
             return
+        
+        # Check for any unrecognized URLs
+        if self._has_unrecognized_url(message.content):
+            try:
+                await message.author.send(
+                    "❌ **Unrecognized music link detected.**\n"
+                    "The link you provided is not from a supported platform.\n\n"
+                    "Please use one of these platforms:\n"
+                    "✅ SoundCloud, Spotify, YouTube, Deezer, Ditto Music"
+                )
+            except discord.Forbidden:
+                # User has DMs disabled, reply in channel
+                await message.reply(
+                    "❌ Unrecognized link. Please use SoundCloud, Spotify, YouTube, Deezer, or Ditto Music.",
+                    delete_after=10
+                )
+            return
+    
+    def _check_unsupported_audio(self, message: discord.Message) -> Optional[str]:
+        """Check if message contains an unsupported audio file and return its name."""
+        unsupported_audio = ['.wav', '.flac', '.ogg', '.aac', '.wma', '.aiff']
+        for attachment in message.attachments:
+            filename_lower = attachment.filename.lower()
+            if any(filename_lower.endswith(ext) for ext in unsupported_audio):
+                return attachment.filename
+        return None
     
     def _get_audio_attachment(self, message: discord.Message) -> Optional[discord.Attachment]:
         """Check if message contains a valid audio file attachment."""
@@ -80,12 +130,6 @@ class PassiveSubmissionCog(commands.Cog):
             filename_lower = attachment.filename.lower()
             if any(filename_lower.endswith(ext) for ext in SUPPORTED_AUDIO_EXTENSIONS):
                 return attachment
-            
-            # Check if it's an unsupported audio file
-            unsupported_audio = ['.wav', '.flac', '.ogg', '.aac', '.wma', '.aiff']
-            if any(filename_lower.endswith(ext) for ext in unsupported_audio):
-                # This is an audio file but not supported
-                return None
         return None
     
     def _check_rejected_link(self, content: str) -> bool:
@@ -97,6 +141,27 @@ class PassiveSubmissionCog(commands.Cog):
             url_lower = url.lower()
             if any(platform in url_lower for platform in REJECTED_PLATFORMS):
                 return True
+        
+        return False
+    
+    def _has_unrecognized_url(self, content: str) -> bool:
+        """Check if message contains any URL that isn't supported or explicitly rejected."""
+        url_pattern = r'https?://[^\s]+'
+        urls = re.findall(url_pattern, content)
+        
+        for url in urls:
+            url_lower = url.lower()
+            
+            # Skip if it's explicitly rejected (already handled)
+            if any(platform in url_lower for platform in REJECTED_PLATFORMS):
+                continue
+            
+            # Skip if it's supported (already handled)
+            if any(platform in url_lower for platform in SUPPORTED_MUSIC_PLATFORMS):
+                continue
+            
+            # This is an unrecognized URL
+            return True
         
         return False
     
@@ -159,9 +224,19 @@ class PassiveSubmissionCog(commands.Cog):
             # Dispatch queue update event
             self.bot.dispatch('queue_update')
             
-            # Send confirmation message
+            # React to the message to show it was processed
+            try:
+                await message.add_reaction('✅')
+            except (discord.Forbidden, discord.HTTPException):
+                pass  # Reaction failed, continue anyway
+            
+            # Send confirmation via DM (private message)
             confirmation = await self._build_confirmation_message(has_linked_handle)
-            await message.reply(confirmation, delete_after=15)
+            try:
+                await message.author.send(confirmation)
+            except discord.Forbidden:
+                # User has DMs disabled, reply in channel
+                await message.reply(confirmation, delete_after=15)
             
             self.submission_count += 1
             logging.info(
@@ -207,9 +282,19 @@ class PassiveSubmissionCog(commands.Cog):
             # Dispatch queue update event
             self.bot.dispatch('queue_update')
             
-            # Send confirmation message
+            # React to the message to show it was processed
+            try:
+                await message.add_reaction('✅')
+            except (discord.Forbidden, discord.HTTPException):
+                pass  # Reaction failed, continue anyway
+            
+            # Send confirmation via DM (private message)
             confirmation = await self._build_confirmation_message(has_linked_handle)
-            await message.reply(confirmation, delete_after=15)
+            try:
+                await message.author.send(confirmation)
+            except discord.Forbidden:
+                # User has DMs disabled, reply in channel
+                await message.reply(confirmation, delete_after=15)
             
             self.submission_count += 1
             logging.info(
