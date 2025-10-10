@@ -462,7 +462,8 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         was_user_initiated = self._user_initiated_disconnect
         
         if was_user_initiated:
-            logging.info("TIKTOK: User-initiated disconnect from stream. Cleaning up...")
+            # ENHANCED MONITORING: Clear disconnect status
+            logging.info("🔌 TIKTOK DISCONNECTED: User-initiated disconnect from stream. Cleaning up...")
         else:
             logging.warning("TIKTOK: Unexpected disconnect from stream (stream may have ended). Cleaning up...")
             
@@ -525,10 +526,14 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
                 
             logging.info(f"TIKTOK: {interaction_type.capitalize()} from {event.user.unique_id} (Level {user_level}) - {points} points")
         except TypeError as e:
-            # Handle nickName vs nick_name mismatch from TikTok API
+            # ENHANCED MONITORING: Handle nickName vs nick_name mismatch from TikTok API
             if 'nickName' in str(e) or 'nick_name' in str(e):
-                logging.warning(f"TikTok API user data format mismatch (nickName vs nick_name): {e}")
-                logging.warning(f"Event user data: {vars(event.user) if hasattr(event, 'user') and hasattr(event.user, '__dict__') else 'N/A'}")
+                logging.warning(f"🔄 SCHEMA MISMATCH DETECTED: TikTok API changed user data format")
+                logging.warning(f"   Error: {e}")
+                logging.warning(f"   Event type: {interaction_type}")
+                logging.warning(f"   Raw event user data: {vars(event.user) if hasattr(event, 'user') and hasattr(event.user, '__dict__') else 'N/A'}")
+                logging.warning(f"   🛡️ Attempting fallback processing to preserve data...")
+                
                 # Continue processing with whatever data we can extract
                 try:
                     unique_id = getattr(event.user, 'unique_id', None) if hasattr(event, 'user') else None
@@ -546,9 +551,9 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
                         discord_id = await self.bot.db.get_discord_id_from_handle(unique_id)
                         if discord_id:
                             await self.bot.db.add_points_to_user(discord_id, points)
-                        logging.info(f"TIKTOK: {interaction_type.capitalize()} from {unique_id} (fallback processing) - {points} points")
+                        logging.info(f"✅ FALLBACK SUCCESS: {interaction_type.capitalize()} from @{unique_id} processed - {points} points awarded")
                 except Exception as fallback_error:
-                    logging.error(f"Fallback processing also failed for {interaction_type}: {fallback_error}", exc_info=True)
+                    logging.error(f"❌ FALLBACK FAILED for {interaction_type}: {fallback_error}", exc_info=True)
             else:
                 logging.error(f"Failed to handle TikTok interaction ({interaction_type}): {e}", exc_info=True)
         except Exception as e:
@@ -562,7 +567,12 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         try:
             # Just capture the handle in the database, no points awarded
             await self.bot.db.upsert_tiktok_account(event.user.unique_id)
-            logging.debug(f"TIKTOK: User {event.user.unique_id} joined the stream (captured in database)")
+            
+            # ENHANCED MONITORING: Confirmation message for join events
+            logging.info(f"👋 JOIN EVENT: @{event.user.unique_id} entered the stream (handle captured)")
+            logging.debug(f"TIKTOK EVENT DEBUG [JOIN]:")
+            logging.debug(f"  User: {event.user.unique_id}")
+            logging.debug(f"  Full Event Data: {vars(event) if hasattr(event, '__dict__') else 'N/A'}")
         except Exception as e:
             logging.error(f"Failed to capture TikTok join event: {e}", exc_info=True)
 
@@ -570,6 +580,8 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         await self._handle_interaction(event, 'like', INTERACTION_POINTS['like'])
 
     async def on_comment(self, event: CommentEvent):
+        # ENHANCED MONITORING: Log comment reception
+        logging.info(f"💬 COMMENT EVENT: @{event.user.unique_id if hasattr(event, 'user') and hasattr(event.user, 'unique_id') else 'unknown'} - '{event.comment if hasattr(event, 'comment') else 'N/A'}'")
         await self._handle_interaction(event, 'comment', INTERACTION_POINTS['comment'], value=event.comment)
 
     async def on_share(self, event: ShareEvent):
@@ -659,6 +671,13 @@ class TikTokCog(commands.GroupCog, name="tiktok", description="Commands for mana
         try:
             # Get viewer count from the event itself
             viewer_count = getattr(event, 'viewer_count', 0)
+            
+            # ENHANCED MONITORING: Validate viewer count data
+            if viewer_count == 0:
+                logging.warning(f"⚠️ VIEWER COUNT WARNING: Received 0 viewers - stream may be offline or data unavailable")
+                logging.warning(f"Event data: {vars(event) if hasattr(event, '__dict__') else 'N/A'}")
+            elif viewer_count > 0:
+                logging.info(f"📊 VIEWER COUNT UPDATE: {viewer_count} active viewers")
             
             # DEBUG: Log viewer count updates
             logging.debug(f"TIKTOK EVENT DEBUG [VIEWER_UPDATE]:")
